@@ -1,0 +1,14 @@
+name: Additional lint
+on:
+  pull_request:
+    branches:
+      - main
+permissions:
+  contents: read
+jobs:
+  check-all:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: .github/scripts/check_all.sh
+        shell: bash
