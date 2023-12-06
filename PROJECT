@@ -17,4 +17,13 @@ resources:
   kind: CPodJob
   path: sxwl/cpodoperator/api/v1beta1
   version: v1beta1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: sxwl.ai
+  group: cpod
+  kind: ModelStorage
+  path: sxwl/cpodoperator/api/v1beta1
+  version: v1beta1
 version: "3"

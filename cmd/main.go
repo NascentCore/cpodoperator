@@ -53,11 +53,15 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
+	var downloaderImage string
+	var storageClassName string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
+	flag.StringVar(&downloaderImage, "artifact-downloader-image", "sxwl-registry.cn-beijing.cr.aliyuncs.com/sxwl-ai/downloader:v1.0.0", "The artifact download job image ")
+	flag.StringVar(&storageClassName, "storageClassName", "ceph-filesystem", "which storagecalss the artifact downloader should create")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -94,6 +98,17 @@ func main() {
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CPodJob")
+		os.Exit(1)
+	}
+	if err = (&controller.ModelStorageReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+		Option: &controller.ModelStorageOption{
+			DownloaderImage:  downloaderImage,
+			StorageClassName: storageClassName,
+		},
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ModelStorage")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
