@@ -43,14 +43,10 @@ const (
 	// The training is complete without error.
 	JobSucceeded JobConditionType = "Succeeded"
 
-	// JobSucceeded means all sub-resources (e.g. services/pods) of this job
-	// reached phase have terminated in success.
-	// The training is complete without error.
+	// modelupload is in process
 	ModelUploading JobConditionType = "ModelUploading"
 
-	// JobSucceeded means all sub-resources (e.g. services/pods) of this job
-	// reached phase have terminated in success.
-	// The training is complete without error.
+	// modelupload is done
 	ModelUploaded JobConditionType = "ModelUploaded"
 
 	// JobFailed means one or more sub-resources (e.g. services/pods) of this job
