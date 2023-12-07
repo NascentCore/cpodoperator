@@ -69,28 +69,6 @@ type CPodJobSpec struct {
 	// +kubebuilder:validation:Enum:MPI;Pytorch;TensorFlow;GeneralJob
 	JobType string `json:"jobType,omitempty"`
 
-	// total minutes for job to run , if not set or set to 0 , no time limit
-	// +optional
-	Duration int32 `json:"duration,omitempty"`
-
-	// For example,
-	//   {
-	//     "PS": ReplicaSpec,
-	//     "Worker": ReplicaSpec,
-	//   }
-	ReplicaSpecs map[ReplicaType]*ReplicaSpec `json:"replicaSpecs"`
-}
-
-// ReplicaType represents the type of the replica. Each operator needs to define its
-// own set of ReplicaTypes.
-type ReplicaType string
-
-// ReplicaSpec is a description of the replica
-type ReplicaSpec struct {
-	// Replicas is the desired number of replicas of the given template.
-	// If unspecified, defaults to 1.
-	Replicas *int32 `json:"replicas,omitempty"`
-
 	// the gpu requirement for each replica
 	// +kubebuilder:default:=8
 	// +optional
@@ -139,6 +117,28 @@ type ReplicaSpec struct {
 	ModelSavePath string `json:"modelSavePath,omitempty"`
 	// the size(MB) of modelsave volume which will created by cpodoperator
 	ModelSaveVolumeSize int32 `json:"modelSaveVolumeSize,omitempty"`
+
+	// total minutes for job to run , if not set or set to 0 , no time limit
+	// +optional
+	Duration int32 `json:"duration,omitempty"`
+
+	// For example,
+	//   {
+	//     "PS": ReplicaSpec,
+	//     "Worker": ReplicaSpec,
+	//   }
+	ReplicaSpecs map[ReplicaType]*ReplicaSpec `json:"replicaSpecs"`
+}
+
+// ReplicaType represents the type of the replica. Each operator needs to define its
+// own set of ReplicaTypes.
+type ReplicaType string
+
+// ReplicaSpec is a description of the replica
+type ReplicaSpec struct {
+	// Replicas is the desired number of replicas of the given template.
+	// If unspecified, defaults to 1.
+	Replicas *int32 `json:"replicas,omitempty"`
 
 	// Template is the object that describes the pod that
 	// will be created for this replica. RestartPolicy in PodTemplateSpec
