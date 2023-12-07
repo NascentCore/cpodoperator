@@ -43,9 +43,20 @@ const (
 	// The training is complete without error.
 	JobSucceeded JobConditionType = "Succeeded"
 
+	// JobSucceeded means all sub-resources (e.g. services/pods) of this job
+	// reached phase have terminated in success.
+	// The training is complete without error.
+	ModelUploading JobConditionType = "ModelUploading"
+
+	// JobSucceeded means all sub-resources (e.g. services/pods) of this job
+	// reached phase have terminated in success.
+	// The training is complete without error.
+	ModelUploaded JobConditionType = "ModelUploaded"
+
 	// JobFailed means one or more sub-resources (e.g. services/pods) of this job
 	// reached phase failed with no restarting.
 	// The training has failed its execution.
+	// include the failures caused by invalid spec
 	JobFailed JobConditionType = "Failed"
 )
 
@@ -58,12 +69,39 @@ type CPodJobSpec struct {
 	// +kubebuilder:validation:Enum:MPI;Pytorch;TensorFlow;GeneralJob
 	JobType string `json:"jobType,omitempty"`
 
-	// docker image used to create containers
-	Image string `json:"image,omitempty"`
+	// total minutes for job to run , if not set or set to 0 , no time limit
+	// +optional
+	Duration int32 `json:"duration,omitempty"`
 
+	// For example,
+	//   {
+	//     "PS": ReplicaSpec,
+	//     "Worker": ReplicaSpec,
+	//   }
+	ReplicaSpecs map[ReplicaType]*ReplicaSpec `json:"replicaSpecs"`
+}
+
+// ReplicaType represents the type of the replica. Each operator needs to define its
+// own set of ReplicaTypes.
+type ReplicaType string
+
+// ReplicaSpec is a description of the replica
+type ReplicaSpec struct {
+	// Replicas is the desired number of replicas of the given template.
+	// If unspecified, defaults to 1.
+	Replicas *int32 `json:"replicas,omitempty"`
+
+	// the gpu requirement for each replica
+	// +kubebuilder:default:=8
+	// +optional
+	GPURequiredPerReplica int32 `json:"gpuRequiredPerReplica,omitempty"`
 	// the path at which dataset volume will mount
 	// if not set or DatasetName is not set , not dataset will be mounted ,
 	// and dataset is in the image
+
+	// gpu type will used as a nodeSelector
+	GPUType string `json:"gpuType,omitempty"`
+
 	// +optional
 	DatasetPath string `json:"datasetPath,omitempty"`
 	// the dataset identifier which can be mapped to a pvc volume with specified dataset
@@ -102,35 +140,35 @@ type CPodJobSpec struct {
 	// the size(MB) of modelsave volume which will created by cpodoperator
 	ModelSaveVolumeSize int32 `json:"modelSaveVolumeSize,omitempty"`
 
-	// gpu type will used as a nodeSelector for workers
-	GPUType string `json:"gpuType,omitempty"`
+	// Template is the object that describes the pod that
+	// will be created for this replica. RestartPolicy in PodTemplateSpec
+	// will be overide by RestartPolicy in ReplicaSpec
+	Template v1.PodTemplateSpec `json:"template,omitempty"`
 
-	// total gpu required
-	// GPU required is not guranteed to be assigned , depends on GPURequiredPerWorker
-	// for example , if gpurequired is 13 and gpurequiredperworker is default value 8 ,
-	// only 8 gpus will be assigned
-	GPURequired int32 `json:"gpuRequired,omitempty"`
-
-	// the gpu requirement for each worker
-	// +kubebuilder:default:=8
-	// +optional
-	GPURequiredPerWorker int32 `json:"gpuRequiredPerWorker,omitempty"`
-
-	// Entrypoint array. Not executed within a shell.
-	// The container image's ENTRYPOINT is used if this is not provided.
-	// Variable references $(VAR_NAME) are expanded using the container's environment. If a variable
-	// cannot be resolved, the reference in the input string will be unchanged. Double $$ are reduced
-	// to a single $, which allows for escaping the $(VAR_NAME) syntax: i.e. "$$(VAR_NAME)" will
-	// produce the string literal "$(VAR_NAME)". Escaped references will never be expanded, regardless
-	// of whether the variable exists or not. Cannot be updated.
-	// More info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell
-	// +optional
-	Command []string `json:"command,omitempty"`
-
-	// total minutes for job to run , if not set or set to 0 , no time limit
-	// +optional
-	Duration int32 `json:"duration,omitempty"`
+	// Restart policy for all replicas within the job.
+	// One of Always, OnFailure, Never and ExitCode.
+	// Default to Never.
+	RestartPolicy RestartPolicy `json:"restartPolicy,omitempty"`
 }
+
+// RestartPolicy describes how the replicas should be restarted.
+// Only one of the following restart policies may be specified.
+// If none of the following policies is specified, the default one
+// is RestartPolicyAlways.
+type RestartPolicy string
+
+const (
+	RestartPolicyAlways    RestartPolicy = "Always"
+	RestartPolicyOnFailure RestartPolicy = "OnFailure"
+	RestartPolicyNever     RestartPolicy = "Never"
+
+	// RestartPolicyExitCode policy means that user should add exit code by themselves,
+	// The job operator will check these exit codes to
+	// determine the behavior when an error occurs:
+	// - 1-127: permanent error, do not restart.
+	// - 128-255: retryable error, will restart the pod.
+	RestartPolicyExitCode RestartPolicy = "ExitCode"
+)
 
 // Represents a git repository.
 type GitRepo struct {
@@ -148,6 +186,14 @@ type CPodJobStatus struct {
 	// +listType=map
 	// +listMapKey=type
 	Conditions []JobCondition `json:"conditions,omitempty"`
+
+	// The reason for the condition's last transition.
+	// +optional
+	Reason string `json:"reason,omitempty"`
+
+	// A human-readable message indicating details about the transition.
+	// +optional
+	Message string `json:"message,omitempty"`
 
 	// Represents time when the job was acknowledged by the job controller.
 	// It is not guaranteed to be set in happens-before order across separate operations.
