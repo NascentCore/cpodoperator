@@ -60,6 +60,39 @@ const (
 	JobFailed JobConditionType = "Failed"
 )
 
+type JobType string
+
+// These are the valid type of cpodjob.
+const (
+	JobTypeMPI        JobType = "mpi"
+	JobTypePytorch    JobType = "pytorch"
+	JobTypeTensorFlow JobType = "TensorFlow"
+	JobTypeGeneral    JobType = "General"
+)
+
+// CPodJobPhase is a label for the condition of a cpodjob at the current time.
+// +enum
+type CPodJobPhase string
+
+// These are the valid statuses of cpodjob.
+const (
+	// PodPending means the cpodjob has been accepted by the system, but one or more of the containers
+	// has not been started. This includes time before being bound to a node, as well as time spent
+	// pulling images onto the host.
+	CPodJobPending CPodJobPhase = "Pending"
+	// CPodJobRunning  means all the cpodjob  pod has been bound to a node and have been started.
+	// At least one container is still running or is in the process of being restarted.
+	CPodJobRunning CPodJobPhase = "Running"
+	// CPodJobCompleted means that all pods of  the cpodjob have voluntarily terminated
+	// with a container exit code of 0, and the system is not going to restart any of these containers.
+	CPodJobCompleted CPodJobPhase = "Completed"
+	// CPodJobFailed means that all containers in the pod have terminated, and at least one container has
+	// terminated in a failure (exited with a non-zero exit code or was stopped by the system).
+	CPodJobFailed CPodJobPhase = "Failed"
+	// PodUnknown means that for some reason the state of the cpodjob could not be obtained.
+	CPodJobUnknown CPodJobPhase = "Unknown"
+)
+
 // CPodJobSpec defines the desired state of CPodJob
 type CPodJobSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
@@ -67,7 +100,7 @@ type CPodJobSpec struct {
 
 	// GeneralJob means k8s job ,
 	// +kubebuilder:validation:Enum:MPI;Pytorch;TensorFlow;GeneralJob
-	JobType string `json:"jobType,omitempty"`
+	JobType JobType `json:"jobType,omitempty"`
 
 	// the gpu requirement for each replica
 	// +kubebuilder:default:=8
@@ -186,6 +219,10 @@ type CPodJobStatus struct {
 	// +listType=map
 	// +listMapKey=type
 	Conditions []JobCondition `json:"conditions,omitempty"`
+
+	// PodPhase is a label for the condition of a pod at the current time.
+	// +enum
+	Phase CPodJobPhase `json:"phase,omitempty"`
 
 	// The reason for the condition's last transition.
 	// +optional

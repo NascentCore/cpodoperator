@@ -145,7 +145,7 @@ func (r *ModelStorageReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				Namespace: modelStorage.Namespace,
 				Name:      jobName,
 				Labels: map[string]string{
-					v1beta1.ModelStorageLabelName: modelStorage.Name,
+					v1beta1.ModelStorageLabel: modelStorage.Name,
 				},
 				OwnerReferences: []metav1.OwnerReference{
 					{

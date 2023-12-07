@@ -17,8 +17,10 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -26,6 +28,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -34,6 +37,8 @@ import (
 
 	cpodv1beta1 "sxwl/cpodoperator/api/v1beta1"
 	"sxwl/cpodoperator/internal/controller"
+	"sxwl/cpodoperator/internal/synchronizer"
+	"sxwl/cpodoperator/pkg/provider/sxwl"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -55,6 +60,9 @@ func main() {
 	var probeAddr string
 	var downloaderImage string
 	var storageClassName string
+	var syncPeriod int
+	var sxwlBaseUrl string
+	var sxwlAccessKey string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -62,6 +70,9 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.StringVar(&downloaderImage, "artifact-downloader-image", "sxwl-registry.cn-beijing.cr.aliyuncs.com/sxwl-ai/downloader:v1.0.0", "The artifact download job image ")
 	flag.StringVar(&storageClassName, "storageClassName", "ceph-filesystem", "which storagecalss the artifact downloader should create")
+	flag.IntVar(&syncPeriod, "sync-period", 10, "the period of every run of synchronizer, unit is second")
+	flag.StringVar(&sxwlBaseUrl, "swxl-baseurl", "https://aiapi.yangapi.cn", "the sxwl url ")
+	flag.StringVar(&sxwlAccessKey, "swxl-accesskey", "", "the access key to access sxwl ")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -117,13 +128,21 @@ func main() {
 		setupLog.Error(err, "unable to set up health check")
 		os.Exit(1)
 	}
+	// TODO: @sxwl-donggang 自定Ready checker
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
 
+	ctx := ctrl.SetupSignalHandler()
+
+	uploader := synchronizer.NewUploader(mgr.GetClient(), sxwl.NewScheduler(sxwlBaseUrl, sxwlAccessKey))
+	go wait.UntilWithContext(ctx, func(ctx context.Context) {
+		uploader.Run(ctx)
+	}, time.Duration(syncPeriod)*time.Second)
+
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
