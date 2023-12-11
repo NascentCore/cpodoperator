@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 )
@@ -14,45 +15,41 @@ type sxwl struct {
 	httpClient *http.Client
 	baseURL    string
 	accessKey  string
+	identity   string
 }
 
 // GetAssignedTaskList implements Scheduler.
-func (s *sxwl) GetAssignedTaskList() error {
-	panic("unimplemented")
-}
+func (s *sxwl) GetAssignedTaskList() ([]Task, error) {
+	urlStr, err := url.JoinPath(s.baseURL, "/api/userJob/cpod_jobs")
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest(http.MethodGet, urlStr, nil)
+	if err != nil {
+		return nil, err
+	}
+	q := req.URL.Query()
+	q.Add("cpodid", s.identity)
+	req.URL.RawQuery = q.Encode()
+	req.Header.Add("Authorization", "Bearer "+s.accessKey)
+	req.Header.Add("Content-Type", "application/json")
 
-// upload cpod info to marketmanager.
-// func UploadCPodStatus(up UploadPayload) bool {
-// 	bytesData, err := json.Marshal(up)
-// 	if err != nil {
-// 		log.SLogger.Errorw("data error", "error", err)
-// 		return false
-// 	}
-// 	req, err := http.NewRequest(http.MethodPost, config.BASE_URL+config.URLPATH_UPLOAD_CPOD_STATUS, bytes.NewBuffer(bytesData))
-// 	if err != nil {
-// 		log.SLogger.Errorw("build request error", "error", err)
-// 		return false
-// 	}
-// 	req.Header.Add("Authorization", "Bearer "+config.ACCESS_KEY)
-// 	req.Header.Add("Content-Type", "application/json")
-// 	resp, err := http.DefaultClient.Do(req)
-// 	//resp, err := http.Post(config.BASE_URL+config.URLPATH_UPLOAD_CPOD_STATUS, "application/json", bytes.NewReader(bytesData))
-// 	if err != nil {
-// 		log.SLogger.Errorw("upload status err", "error", err)
-// 		return false
-// 	}
-// 	defer resp.Body.Close()
-// 	if resp.StatusCode != 200 {
-// 		respData, err := io.ReadAll(resp.Body)
-// 		if err != nil {
-// 			log.SLogger.Errorw("statuscode != 200 and read body err", "code", resp.StatusCode, "error", err)
-// 		} else {
-// 			log.SLogger.Warnw("statuscode != 200", "code", resp.StatusCode, "body", string(respData))
-// 		}
-// 		return false
-// 	}
-// 	return true
-// }
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	var res []Task
+	if err = json.Unmarshal(body, &res); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
 
 // TaskCallBack upload cpodjob status
 func (s *sxwl) TaskCallBack(states []State) error {

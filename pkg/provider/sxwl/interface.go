@@ -7,14 +7,16 @@ import (
 )
 
 type Task struct {
-	CkptPath          string `json:"ckptPath"`
-	CkptVol           int    `json:"ckptVol"`
-	Command           string `json:"runCommand"`
-	DatasetPath       string `json:"datasetPath"`
-	DatasetName       string `json:"DatasetName"`
-	GpuNumber         int    `json:"gpuNumber"`
-	GpuType           string `json:"gpuType"`
-	HfURL             string `json:"hfUrl"`
+	CkptPath    string            `json:"ckptPath"`
+	CkptVol     int               `json:"ckptVol"`
+	Command     string            `json:"runCommand"`
+	Envs        map[string]string `json:"env"`
+	DatasetPath string            `json:"datasetPath"`
+	DatasetName string            `json:"DatasetName"`
+	GpuNumber   int               `json:"gpuNumber"`
+	GpuType     string            `json:"gpuType"`
+	HfURL       string            `json:"hfUrl"`
+	// TODO: @sxwl-donggang rename to Image
 	ImagePath         string `json:"imagePath"`
 	JobID             int    `json:"jobId"`
 	JobName           string `json:"jobName"`
@@ -38,18 +40,19 @@ type State struct {
 
 type Scheduler interface {
 	// GetAssignedTaskList get assigned to this  task  from scheduler
-	GetAssignedTaskList() error
+	GetAssignedTaskList() ([]Task, error)
 
 	// TaskCallBack call after task running in cpod controller
 	TaskCallBack([]State) error
 }
 
-func NewScheduler(baseURL, accesskey string) Scheduler {
+func NewScheduler(baseURL, accesskey, identify string) Scheduler {
 	return &sxwl{
 		httpClient: &http.Client{
 			Timeout: 5 * time.Second,
 		},
 		baseURL:   baseURL,
 		accessKey: accesskey,
+		identity:  identify,
 	}
 }

@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	tov1 "github.com/kubeflow/training-operator/pkg/apis/kubeflow.org/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -67,7 +68,6 @@ const (
 	JobTypeMPI        JobType = "mpi"
 	JobTypePytorch    JobType = "pytorch"
 	JobTypeTensorFlow JobType = "TensorFlow"
-	JobTypeGeneral    JobType = "General"
 )
 
 // CPodJobPhase is a label for the condition of a cpodjob at the current time.
@@ -160,48 +160,8 @@ type CPodJobSpec struct {
 	//     "PS": ReplicaSpec,
 	//     "Worker": ReplicaSpec,
 	//   }
-	ReplicaSpecs map[ReplicaType]*ReplicaSpec `json:"replicaSpecs"`
+	ReplicaSpecs map[tov1.ReplicaType]*tov1.ReplicaSpec `json:"replicaSpecs"`
 }
-
-// ReplicaType represents the type of the replica. Each operator needs to define its
-// own set of ReplicaTypes.
-type ReplicaType string
-
-// ReplicaSpec is a description of the replica
-type ReplicaSpec struct {
-	// Replicas is the desired number of replicas of the given template.
-	// If unspecified, defaults to 1.
-	Replicas *int32 `json:"replicas,omitempty"`
-
-	// Template is the object that describes the pod that
-	// will be created for this replica. RestartPolicy in PodTemplateSpec
-	// will be overide by RestartPolicy in ReplicaSpec
-	Template v1.PodTemplateSpec `json:"template,omitempty"`
-
-	// Restart policy for all replicas within the job.
-	// One of Always, OnFailure, Never and ExitCode.
-	// Default to Never.
-	RestartPolicy RestartPolicy `json:"restartPolicy,omitempty"`
-}
-
-// RestartPolicy describes how the replicas should be restarted.
-// Only one of the following restart policies may be specified.
-// If none of the following policies is specified, the default one
-// is RestartPolicyAlways.
-type RestartPolicy string
-
-const (
-	RestartPolicyAlways    RestartPolicy = "Always"
-	RestartPolicyOnFailure RestartPolicy = "OnFailure"
-	RestartPolicyNever     RestartPolicy = "Never"
-
-	// RestartPolicyExitCode policy means that user should add exit code by themselves,
-	// The job operator will check these exit codes to
-	// determine the behavior when an error occurs:
-	// - 1-127: permanent error, do not restart.
-	// - 128-255: retryable error, will restart the pod.
-	RestartPolicyExitCode RestartPolicy = "ExitCode"
-)
 
 // Represents a git repository.
 type GitRepo struct {

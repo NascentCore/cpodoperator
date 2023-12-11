@@ -17,8 +17,8 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"flag"
+	"fmt"
 	"os"
 	"time"
 
@@ -28,7 +28,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -63,6 +62,7 @@ func main() {
 	var syncPeriod int
 	var sxwlBaseUrl string
 	var sxwlAccessKey string
+	var sxwlIdentity string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -71,8 +71,9 @@ func main() {
 	flag.StringVar(&downloaderImage, "artifact-downloader-image", "sxwl-registry.cn-beijing.cr.aliyuncs.com/sxwl-ai/downloader:v1.0.0", "The artifact download job image ")
 	flag.StringVar(&storageClassName, "storageClassName", "ceph-filesystem", "which storagecalss the artifact downloader should create")
 	flag.IntVar(&syncPeriod, "sync-period", 10, "the period of every run of synchronizer, unit is second")
-	flag.StringVar(&sxwlBaseUrl, "swxl-baseurl", "https://aiapi.yangapi.cn", "the sxwl url ")
-	flag.StringVar(&sxwlAccessKey, "swxl-accesskey", "", "the access key to access sxwl ")
+	flag.StringVar(&sxwlBaseUrl, "sxwl-baseurl", "https://aiapi.yangapi.cn", "the sxwl url ")
+	flag.StringVar(&sxwlAccessKey, "sxwl-accesskey", "", "the access key to access sxwl ")
+	flag.StringVar(&sxwlIdentity, "sxwl-identity", "", "the identity to access sxwl ")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -111,17 +112,17 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "CPodJob")
 		os.Exit(1)
 	}
-	if err = (&controller.ModelStorageReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Option: &controller.ModelStorageOption{
-			DownloaderImage:  downloaderImage,
-			StorageClassName: storageClassName,
-		},
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ModelStorage")
-		os.Exit(1)
-	}
+	// if err = (&controller.ModelStorageReconciler{
+	// 	Client: mgr.GetClient(),
+	// 	Scheme: mgr.GetScheme(),
+	// 	Option: &controller.ModelStorageOption{
+	// 		DownloaderImage:  downloaderImage,
+	// 		StorageClassName: storageClassName,
+	// 	},
+	// }).SetupWithManager(mgr); err != nil {
+	// 	setupLog.Error(err, "unable to create controller", "controller", "ModelStorage")
+	// 	os.Exit(1)
+	// }
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
@@ -136,10 +137,14 @@ func main() {
 
 	ctx := ctrl.SetupSignalHandler()
 
-	uploader := synchronizer.NewUploader(mgr.GetClient(), sxwl.NewScheduler(sxwlBaseUrl, sxwlAccessKey))
-	go wait.UntilWithContext(ctx, func(ctx context.Context) {
-		uploader.Run(ctx)
-	}, time.Duration(syncPeriod)*time.Second)
+	syncManager := synchronizer.NewManager(mgr.GetClient(), sxwl.NewScheduler(sxwlBaseUrl, sxwlAccessKey, sxwlAccessKey), time.Duration(syncPeriod)*time.Second, ctrl.Log)
+	go func() {
+		if mgr.GetCache().WaitForCacheSync(ctx) {
+			syncManager.Start(ctx)
+		} else {
+			setupLog.Error(fmt.Errorf("cannot wait for cache sync"), "problem waiting informer cache")
+		}
+	}()
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctx); err != nil {
