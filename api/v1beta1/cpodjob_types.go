@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	tov1 "github.com/kubeflow/training-operator/pkg/apis/kubeflow.org/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -60,6 +61,38 @@ const (
 	JobFailed JobConditionType = "Failed"
 )
 
+type JobType string
+
+// These are the valid type of cpodjob.
+const (
+	JobTypeMPI        JobType = "mpi"
+	JobTypePytorch    JobType = "pytorch"
+	JobTypeTensorFlow JobType = "TensorFlow"
+)
+
+// CPodJobPhase is a label for the condition of a cpodjob at the current time.
+// +enum
+type CPodJobPhase string
+
+// These are the valid statuses of cpodjob.
+const (
+	// PodPending means the cpodjob has been accepted by the system, but one or more of the containers
+	// has not been started. This includes time before being bound to a node, as well as time spent
+	// pulling images onto the host.
+	CPodJobPending CPodJobPhase = "Pending"
+	// CPodJobRunning  means all the cpodjob  pod has been bound to a node and have been started.
+	// At least one container is still running or is in the process of being restarted.
+	CPodJobRunning CPodJobPhase = "Running"
+	// CPodJobCompleted means that all pods of  the cpodjob have voluntarily terminated
+	// with a container exit code of 0, and the system is not going to restart any of these containers.
+	CPodJobCompleted CPodJobPhase = "Completed"
+	// CPodJobFailed means that all containers in the pod have terminated, and at least one container has
+	// terminated in a failure (exited with a non-zero exit code or was stopped by the system).
+	CPodJobFailed CPodJobPhase = "Failed"
+	// PodUnknown means that for some reason the state of the cpodjob could not be obtained.
+	CPodJobUnknown CPodJobPhase = "Unknown"
+)
+
 // CPodJobSpec defines the desired state of CPodJob
 type CPodJobSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
@@ -67,7 +100,7 @@ type CPodJobSpec struct {
 
 	// GeneralJob means k8s job ,
 	// +kubebuilder:validation:Enum:MPI;Pytorch;TensorFlow;GeneralJob
-	JobType string `json:"jobType,omitempty"`
+	JobType JobType `json:"jobType,omitempty"`
 
 	// the gpu requirement for each replica
 	// +kubebuilder:default:=8
@@ -127,48 +160,8 @@ type CPodJobSpec struct {
 	//     "PS": ReplicaSpec,
 	//     "Worker": ReplicaSpec,
 	//   }
-	ReplicaSpecs map[ReplicaType]*ReplicaSpec `json:"replicaSpecs"`
+	ReplicaSpecs map[tov1.ReplicaType]*tov1.ReplicaSpec `json:"replicaSpecs"`
 }
-
-// ReplicaType represents the type of the replica. Each operator needs to define its
-// own set of ReplicaTypes.
-type ReplicaType string
-
-// ReplicaSpec is a description of the replica
-type ReplicaSpec struct {
-	// Replicas is the desired number of replicas of the given template.
-	// If unspecified, defaults to 1.
-	Replicas *int32 `json:"replicas,omitempty"`
-
-	// Template is the object that describes the pod that
-	// will be created for this replica. RestartPolicy in PodTemplateSpec
-	// will be overide by RestartPolicy in ReplicaSpec
-	Template v1.PodTemplateSpec `json:"template,omitempty"`
-
-	// Restart policy for all replicas within the job.
-	// One of Always, OnFailure, Never and ExitCode.
-	// Default to Never.
-	RestartPolicy RestartPolicy `json:"restartPolicy,omitempty"`
-}
-
-// RestartPolicy describes how the replicas should be restarted.
-// Only one of the following restart policies may be specified.
-// If none of the following policies is specified, the default one
-// is RestartPolicyAlways.
-type RestartPolicy string
-
-const (
-	RestartPolicyAlways    RestartPolicy = "Always"
-	RestartPolicyOnFailure RestartPolicy = "OnFailure"
-	RestartPolicyNever     RestartPolicy = "Never"
-
-	// RestartPolicyExitCode policy means that user should add exit code by themselves,
-	// The job operator will check these exit codes to
-	// determine the behavior when an error occurs:
-	// - 1-127: permanent error, do not restart.
-	// - 128-255: retryable error, will restart the pod.
-	RestartPolicyExitCode RestartPolicy = "ExitCode"
-)
 
 // Represents a git repository.
 type GitRepo struct {
@@ -186,6 +179,10 @@ type CPodJobStatus struct {
 	// +listType=map
 	// +listMapKey=type
 	Conditions []JobCondition `json:"conditions,omitempty"`
+
+	// PodPhase is a label for the condition of a pod at the current time.
+	// +enum
+	Phase CPodJobPhase `json:"phase,omitempty"`
 
 	// The reason for the condition's last transition.
 	// +optional

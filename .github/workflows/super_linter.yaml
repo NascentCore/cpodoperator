@@ -21,6 +21,11 @@ jobs:
         # Linters are disabled in this env file
         run: cat .github/super_linter.env >> "$GITHUB_ENV"
 
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.21.1"
+
       - name: Lint Code Base
         # https://github.com/github/super-linter#slim-image
         # Linters missing from slim image are not useful for Tricorder codebase
