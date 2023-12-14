@@ -23,3 +23,6 @@ Dockerfile.cross
 *.swp
 *.swo
 *~
+
+# localtest
+localtest.sh

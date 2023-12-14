@@ -3,6 +3,7 @@ package sxwl
 import (
 	"net/http"
 	"os"
+	"sxwl/cpodoperator/pkg/resource"
 	"testing"
 	"time"
 )
@@ -75,10 +76,29 @@ func Test_sxwl_HeartBeat(t *testing.T) {
 			wantErr: false,
 		},
 	}
-
+	var testPayload HeartBeatPayload
+	testPayload = HeartBeatPayload{
+		CPodID:    "",
+		JobStatus: []State{},
+		ResourceInfo: resource.CPodResourceInfo{
+			CPodID:      "cpod0001",
+			CPodVersion: "1.0",
+			GPUSummaries: []resource.GPUSummary{{
+				Vendor:      "nvidia",
+				Prod:        "3090",
+				Total:       1,
+				Allocatable: 1,
+			}},
+			CachedModels:   []string{},
+			CachedDatasets: []string{},
+			CachedImages:   []string{},
+			Nodes:          []resource.NodeInfo{},
+		},
+		UpdateTime: time.Time{},
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := s.HeartBeat(HeartBeatPayload{})
+			err := s.HeartBeat(testPayload)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("sxwl.HeartBeat() error = %v, wantErr %v", err, tt.wantErr)
 				return

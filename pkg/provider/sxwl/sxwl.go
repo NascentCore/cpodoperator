@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sxwl/cpodoperator/pkg/consts"
 )
 
 var _ Scheduler = &sxwl{}
@@ -20,7 +21,7 @@ type sxwl struct {
 
 // GetAssignedJobList implements Scheduler.
 func (s *sxwl) GetAssignedJobList() ([]PortalJob, error) {
-	urlStr, err := url.JoinPath(s.baseURL, "/api/userJob/cpod_jobs")
+	urlStr, err := url.JoinPath(s.baseURL, consts.URLPATH_FETCH_JOB)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +53,7 @@ func (s *sxwl) GetAssignedJobList() ([]PortalJob, error) {
 }
 
 func (s *sxwl) HeartBeat(payload HeartBeatPayload) error {
-	urlStr, err := url.JoinPath(s.baseURL, "/api/userJob/cpod_status")
+	urlStr, err := url.JoinPath(s.baseURL, consts.URLPATH_UPLOAD_CPOD_STATUS)
 	if err != nil {
 		return err
 	}
@@ -70,7 +71,12 @@ func (s *sxwl) HeartBeat(payload HeartBeatPayload) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to upload: %v ", resp.StatusCode)
+		respData, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("statuscode(%d) != 200 and read body err : %v", resp.StatusCode, err)
+		}
+		fmt.Println(string(respData))
+		return fmt.Errorf("statuscode(%d) != 200", resp.StatusCode)
 	}
 	return nil
 }
