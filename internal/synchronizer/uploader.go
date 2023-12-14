@@ -45,7 +45,8 @@ func (u *Uploader) Start(ctx context.Context) {
 			JobType:   cpod.Spec.JobType,
 			JobStatus: v1beta1.CPodJobPhase(cpod.Status.Phase),
 		})
-		err = u.scheduler.TaskCallBack(stats)
+		// TODO: build heartbeat payload
+		err = u.scheduler.HeartBeat(sxwl.HeartBeatPayload{})
 		if err != nil {
 			u.logger.Error(err, "failed to list cpodjob")
 			return
