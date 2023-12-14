@@ -3,10 +3,11 @@ package sxwl
 import (
 	"net/http"
 	"sxwl/cpodoperator/api/v1beta1"
+	"sxwl/cpodoperator/pkg/resource"
 	"time"
 )
 
-type Task struct {
+type PortalJob struct {
 	CkptPath    string            `json:"ckptPath"`
 	CkptVol     int               `json:"ckptVol"`
 	Command     string            `json:"runCommand"`
@@ -35,15 +36,23 @@ type State struct {
 	JobType   v1beta1.JobType `json:"jobtype"`
 	// TODO: @sxwl-donggang 序列化风格没保持一致，第一版竟然让sxwl不变更
 	JobStatus v1beta1.CPodJobPhase `json:"job_status"`
+	Info      string               `json:"info,omitempty"` // more info about jobstatus , especially when error occured
 	Extension interface{}          `json:"extension"`
 }
 
 type Scheduler interface {
-	// GetAssignedTaskList get assigned to this  task  from scheduler
-	GetAssignedTaskList() ([]Task, error)
+	// GetAssignedJobList get assigned to this  Job  from scheduler
+	GetAssignedJobList() ([]PortalJob, error)
 
-	// TaskCallBack call after task running in cpod controller
-	TaskCallBack([]State) error
+	// upload heartbeat info ,
+	HeartBeat(HeartBeatPayload) error
+}
+
+type HeartBeatPayload struct {
+	CPodID       string                    `json:"cpod_id"`
+	JobStatus    []State                   `json:"job_status"`
+	ResourceInfo resource.CPodResourceInfo `json:"resource_info"`
+	UpdateTime   time.Time                 `json:"update_time"`
 }
 
 func NewScheduler(baseURL, accesskey, identify string) Scheduler {

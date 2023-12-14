@@ -18,8 +18,8 @@ type sxwl struct {
 	identity   string
 }
 
-// GetAssignedTaskList implements Scheduler.
-func (s *sxwl) GetAssignedTaskList() ([]Task, error) {
+// GetAssignedJobList implements Scheduler.
+func (s *sxwl) GetAssignedJobList() ([]PortalJob, error) {
 	urlStr, err := url.JoinPath(s.baseURL, "/api/userJob/cpod_jobs")
 	if err != nil {
 		return nil, err
@@ -44,20 +44,19 @@ func (s *sxwl) GetAssignedTaskList() ([]Task, error) {
 	if err != nil {
 		return nil, err
 	}
-	var res []Task
+	var res []PortalJob
 	if err = json.Unmarshal(body, &res); err != nil {
 		return nil, err
 	}
 	return res, nil
 }
 
-// TaskCallBack upload cpodjob status
-func (s *sxwl) TaskCallBack(states []State) error {
+func (s *sxwl) HeartBeat(payload HeartBeatPayload) error {
 	urlStr, err := url.JoinPath(s.baseURL, "/api/userJob/cpod_status")
 	if err != nil {
 		return err
 	}
-	reqBytes, _ := json.Marshal(states)
+	reqBytes, _ := json.Marshal(payload)
 	req, err := http.NewRequest(http.MethodPost, urlStr, bytes.NewBuffer(reqBytes))
 	if err != nil {
 		return err
