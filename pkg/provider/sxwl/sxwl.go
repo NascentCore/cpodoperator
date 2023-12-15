@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	v1beta1 "sxwl/cpodoperator/api/v1beta1"
 )
 
 var _ Scheduler = &sxwl{}
@@ -18,9 +19,9 @@ type sxwl struct {
 	identity   string
 }
 
-// GetAssignedTaskList implements Scheduler.
-func (s *sxwl) GetAssignedTaskList() ([]Task, error) {
-	urlStr, err := url.JoinPath(s.baseURL, "/api/userJob/cpod_jobs")
+// GetAssignedJobList implements Scheduler.
+func (s *sxwl) GetAssignedJobList() ([]PortalJob, error) {
+	urlStr, err := url.JoinPath(s.baseURL, v1beta1.URLPATH_FETCH_JOB)
 	if err != nil {
 		return nil, err
 	}
@@ -44,20 +45,19 @@ func (s *sxwl) GetAssignedTaskList() ([]Task, error) {
 	if err != nil {
 		return nil, err
 	}
-	var res []Task
+	var res []PortalJob
 	if err = json.Unmarshal(body, &res); err != nil {
 		return nil, err
 	}
 	return res, nil
 }
 
-// TaskCallBack upload cpodjob status
-func (s *sxwl) TaskCallBack(states []State) error {
-	urlStr, err := url.JoinPath(s.baseURL, "/api/userJob/cpod_status")
+func (s *sxwl) HeartBeat(payload HeartBeatPayload) error {
+	urlStr, err := url.JoinPath(s.baseURL, v1beta1.URLPATH_UPLOAD_CPOD_STATUS)
 	if err != nil {
 		return err
 	}
-	reqBytes, _ := json.Marshal(states)
+	reqBytes, _ := json.Marshal(payload)
 	req, err := http.NewRequest(http.MethodPost, urlStr, bytes.NewBuffer(reqBytes))
 	if err != nil {
 		return err
@@ -71,7 +71,12 @@ func (s *sxwl) TaskCallBack(states []State) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to upload: %v ", resp.StatusCode)
+		respData, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("statuscode(%d) != 200 and read body err : %v", resp.StatusCode, err)
+		}
+		fmt.Println(string(respData))
+		return fmt.Errorf("statuscode(%d) != 200", resp.StatusCode)
 	}
 	return nil
 }

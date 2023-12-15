@@ -38,7 +38,7 @@ func (s *SyncJob) Start(ctx context.Context) {
 		return
 	}
 
-	tasks, err := s.scheduler.GetAssignedTaskList()
+	tasks, err := s.scheduler.GetAssignedJobList()
 	if err != nil {
 		s.logger.Error(err, "failed to list task")
 		return
