@@ -7,7 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sxwl/cpodoperator/pkg/consts"
+	v1beta1 "sxwl/cpodoperator/api/v1beta1"
 )
 
 var _ Scheduler = &sxwl{}
@@ -21,7 +21,7 @@ type sxwl struct {
 
 // GetAssignedJobList implements Scheduler.
 func (s *sxwl) GetAssignedJobList() ([]PortalJob, error) {
-	urlStr, err := url.JoinPath(s.baseURL, consts.URLPATH_FETCH_JOB)
+	urlStr, err := url.JoinPath(s.baseURL, v1beta1.URLPATH_FETCH_JOB)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func (s *sxwl) GetAssignedJobList() ([]PortalJob, error) {
 }
 
 func (s *sxwl) HeartBeat(payload HeartBeatPayload) error {
-	urlStr, err := url.JoinPath(s.baseURL, consts.URLPATH_UPLOAD_CPOD_STATUS)
+	urlStr, err := url.JoinPath(s.baseURL, v1beta1.URLPATH_UPLOAD_CPOD_STATUS)
 	if err != nil {
 		return err
 	}
