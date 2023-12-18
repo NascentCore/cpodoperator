@@ -24,10 +24,11 @@ type Manager struct {
 }
 
 func NewManager(kubeClient client.Client, scheduler sxwl.Scheduler, period time.Duration, logger logr.Logger) *Manager {
+	ch := make(chan sxwl.HeartBeatPayload, 1)
 	return &Manager{
 		runables: []Runnable{
 			NewSyncJob(kubeClient, scheduler, logger.WithName("syncjob")),
-			NewUploader(kubeClient, scheduler, logger.WithName("uploader")),
+			NewUploader(ch, scheduler, period, logger.WithName("uploader")),
 		},
 		period: period,
 	}
