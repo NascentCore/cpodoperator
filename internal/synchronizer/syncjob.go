@@ -2,32 +2,44 @@ package synchronizer
 
 import (
 	"context"
+	"strings"
 	"sxwl/cpodoperator/api/v1beta1"
 	"sxwl/cpodoperator/pkg/provider/sxwl"
+	"sxwl/cpodoperator/pkg/util"
+	"sync"
 
 	"github.com/go-logr/logr"
-	tov1 "github.com/kubeflow/training-operator/pkg/apis/kubeflow.org/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+type jobBuffer struct {
+	m  map[string]sxwl.PortalJob
+	mu *sync.RWMutex
+}
+
 type SyncJob struct {
-	kubeClient client.Client
-	scheduler  sxwl.Scheduler
-	logger     logr.Logger
+	kubeClient       client.Client
+	scheduler        sxwl.Scheduler
+	createFailedJobs jobBuffer
+	logger           logr.Logger
 }
 
 func NewSyncJob(kubeClient client.Client, scheduler sxwl.Scheduler, logger logr.Logger) *SyncJob {
 	return &SyncJob{
-		kubeClient: kubeClient,
-		scheduler:  scheduler,
-		logger:     logger,
+		kubeClient:       kubeClient,
+		scheduler:        scheduler,
+		createFailedJobs: jobBuffer{m: map[string]sxwl.PortalJob{}, mu: new(sync.RWMutex)},
+		logger:           logger,
 	}
 }
 
+// first retrieve twn job sets , portal job set and cpod job set
+// for jobs in portal not in cpod , create it
+// for jobs in cpod not in portal , if it's running , delete it
 func (s *SyncJob) Start(ctx context.Context) {
-	s.logger.Info("sync task")
+	s.logger.Info("sync job")
 
 	var cpodjobs v1beta1.CPodJobList
 	err := s.kubeClient.List(ctx, &cpodjobs, &client.MatchingLabels{
@@ -38,67 +50,88 @@ func (s *SyncJob) Start(ctx context.Context) {
 		return
 	}
 
-	tasks, err := s.scheduler.GetAssignedJobList()
+	portaljobs, err := s.scheduler.GetAssignedJobList()
 	if err != nil {
-		s.logger.Error(err, "failed to list task")
+		s.logger.Error(err, "failed to list job")
 		return
 	}
-	s.logger.Info("assigned task", "tasks", tasks)
+	s.logger.Info("assigned job", "jobs", portaljobs)
 
-	for _, task := range tasks {
+	for _, job := range portaljobs {
 		exists := false
 		for _, cpodjob := range cpodjobs.Items {
-			if cpodjob.Name == task.JobName {
+			if cpodjob.Name == job.JobName {
 				exists = true
 			}
 		}
 		if !exists {
+			var cmd []string
+			if job.Command != "" {
+				cmd = strings.Split(job.Command, " ")
+			}
+			var envs []v1.EnvVar
+			for k, v := range job.Envs {
+				envs = append(envs, v1.EnvVar{Name: k, Value: v})
+			}
+			duration := 0
+			if job.StopType == v1beta1.PORTAL_STOPTYPE_WITHLIMIT && job.StopTime > 0 {
+				duration = job.StopTime
+			}
+			//
+			var gpuPerWorker int32 = 8
+			var replicas int32 = 1
+			if job.GpuNumber < 8 {
+				gpuPerWorker = int32(job.GpuNumber)
+			} else {
+				replicas = int32(job.GpuNumber) / 8
+			}
+
 			newCPodJob := v1beta1.CPodJob{
 				ObjectMeta: metav1.ObjectMeta{
 					// TODO: create namespace for different tenant
-					Namespace: "cpod",
-					Name:      task.JobName,
+					Namespace: v1beta1.CPOD_NAMESPACE,
+					Name:      job.JobName,
+					Labels:    map[string]string{v1beta1.CPodJobSourceLabel: v1beta1.CPodJobSource},
 				},
+
 				Spec: v1beta1.CPodJobSpec{
-					JobType:             v1beta1.JobType(task.JobType),
-					GPUType:             task.GpuType,
-					DatasetName:         task.DatasetName,
-					DatasetPath:         task.DatasetPath,
-					PretrainModelName:   task.PretrainModelName,
-					PretrainModelPath:   task.PretrainModelPath,
-					CKPTPath:            task.CkptPath,
-					CKPTVolumeSize:      int32(task.CkptVol),
-					ModelSavePath:       task.ModelPath,
-					ModelSaveVolumeSize: int32(task.ModelVol),
-					ReplicaSpecs: map[tov1.ReplicaType]*tov1.ReplicaSpec{
-						// TODO: @sxwl-donggang 如何制定type
-						tov1.PyTorchJobReplicaTypeWorker: {
-							Template: v1.PodTemplateSpec{
-								Spec: v1.PodSpec{
-									Containers: []v1.Container{
-										{
-											Name:    "main",
-											Image:   task.ImagePath,
-											Command: []string{task.Command},
-										},
-									},
-								},
-							},
-						},
-					},
+					JobType:               v1beta1.JobType(job.JobType),
+					GPURequiredPerReplica: gpuPerWorker,
+					GPUType:               job.GpuType,
+					DatasetPath:           job.DatasetPath,
+					DatasetName:           job.DatasetName,
+					PretrainModelPath:     job.PretrainModelPath,
+					PretrainModelName:     job.PretrainModelName,
+					CKPTPath:              job.CkptPath,
+					CKPTVolumeSize:        int32(job.CkptVol),
+					ModelSavePath:         job.ModelPath,
+					ModelSaveVolumeSize:   int32(job.ModelVol),
+					Duration:              int32(duration),
+					Image:                 job.ImagePath,
+					UploadModel:           true,
+					Command:               cmd,
+					Envs:                  envs,
+					WorkerReplicas:        replicas,
 				},
 			}
 			if err = s.kubeClient.Create(ctx, &newCPodJob); err != nil {
-				s.logger.Error(err, "failed to create cpodjob")
-				return
+				s.addCreateFailedJob(job)
+				s.logger.Error(err, "failed to create cpodjob", "job", newCPodJob)
+			} else {
+				s.deleteCreateFailedJob(job.JobName)
+				s.logger.Info("cpodjob created", "job", newCPodJob)
 			}
 		}
 	}
 
 	for _, cpodjob := range cpodjobs.Items {
+		// do nothing if job has reached a no more change status
+		if util.IsFinshed(cpodjob.Status) {
+			continue
+		}
 		exists := false
-		for _, task := range tasks {
-			if cpodjob.Name == task.JobName {
+		for _, job := range portaljobs {
+			if cpodjob.Name == job.JobName {
 				exists = true
 			}
 		}
@@ -107,7 +140,37 @@ func (s *SyncJob) Start(ctx context.Context) {
 				s.logger.Error(err, "failed to delete cpodjob")
 				return
 			}
+			s.logger.Info("cpodjob deleted", "jobid", cpodjob.Name)
 		}
 	}
 
+}
+
+func (s *SyncJob) getCreateFailedJobs() []sxwl.PortalJob {
+	res := []sxwl.PortalJob{}
+	s.createFailedJobs.mu.RLock()
+	defer s.createFailedJobs.mu.RUnlock()
+	for _, v := range s.createFailedJobs.m {
+		res = append(res, v)
+	}
+	return res
+}
+
+func (s *SyncJob) addCreateFailedJob(j sxwl.PortalJob) {
+	if _, ok := s.createFailedJobs.m[j.JobName]; ok {
+		return
+	}
+	s.createFailedJobs.mu.Lock()
+	defer s.createFailedJobs.mu.Unlock()
+	s.createFailedJobs.m[j.JobName] = j
+}
+
+// 如果任务创建成功了，将其从失败任务列表中删除
+func (s *SyncJob) deleteCreateFailedJob(j string) {
+	if _, ok := s.createFailedJobs.m[j]; !ok {
+		return
+	}
+	s.createFailedJobs.mu.Lock()
+	defer s.createFailedJobs.mu.Unlock()
+	delete(s.createFailedJobs.m, j)
 }

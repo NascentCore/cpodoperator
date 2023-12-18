@@ -2,55 +2,49 @@ package synchronizer
 
 import (
 	"context"
-	"sxwl/cpodoperator/api/v1beta1"
+	"fmt"
 	"sxwl/cpodoperator/pkg/provider/sxwl"
+	"time"
 
 	"github.com/go-logr/logr"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// Uploader定时上报任务
+// Uploader定时上报心跳信息, 数据来自Ch
 type Uploader struct {
-	kubeClient client.Client
-	scheduler  sxwl.Scheduler
-	logger     logr.Logger
+	ch            <-chan sxwl.HeartBeatPayload
+	scheduler     sxwl.Scheduler
+	cachedPayload sxwl.HeartBeatPayload
+	logger        logr.Logger
 }
 
-func NewUploader(kubeClient client.Client, scheduler sxwl.Scheduler, logger logr.Logger) *Uploader {
+func NewUploader(ch <-chan sxwl.HeartBeatPayload, scheduler sxwl.Scheduler, interval time.Duration, logger logr.Logger) *Uploader {
 	return &Uploader{
-		kubeClient: kubeClient,
-		scheduler:  scheduler,
-		logger:     logger,
+		ch:        ch,
+		scheduler: scheduler,
+		logger:    logger,
 	}
 }
 
 func (u *Uploader) Start(ctx context.Context) {
-	// fetch all cpojob
 	u.logger.Info("uploader")
-
-	var cpodjobs v1beta1.CPodJobList
-	err := u.kubeClient.List(ctx, &cpodjobs, &client.MatchingLabels{
-		v1beta1.CPodJobSourceLabel: v1beta1.CPodJobSource,
-	})
-	if err != nil {
-		u.logger.Error(err, "failed to list cpodjob")
+	select {
+	case u.cachedPayload = <-u.ch:
+	case <-ctx.Done():
+		u.logger.Info("uploader stopped")
+		return
+	default:
+		u.logger.Info("no new data")
+	}
+	if u.cachedPayload.CPodID == "" {
+		u.logger.Info("no data to upload")
 		return
 	}
-
-	stats := make([]sxwl.State, len(cpodjobs.Items))
-	for _, cpod := range cpodjobs.Items {
-		stats = append(stats, sxwl.State{
-			Name:      cpod.Name,
-			Namespace: cpod.Namespace,
-			JobType:   cpod.Spec.JobType,
-			// JobStatus: v1beta1.CPodJobPhase(cpod.Status.Phase),
-		})
-		// TODO: build heartbeat payload
-		err = u.scheduler.HeartBeat(sxwl.HeartBeatPayload{})
-		if err != nil {
-			u.logger.Error(err, "failed to list cpodjob")
-			return
-		}
-		u.logger.Info("uploader", "Stats", stats)
+	u.logger.Info(fmt.Sprintf("data updated at %d seconds ago", int(time.Now().Sub(u.cachedPayload.UpdateTime).Seconds())))
+	u.logger.Info("ready to upload", "payload", u.cachedPayload)
+	err := u.scheduler.HeartBeat(u.cachedPayload)
+	if err != nil {
+		u.logger.Error(err, "upload cpod status data failed")
+	} else {
+		u.logger.Info("uploaded cpod status data")
 	}
 }

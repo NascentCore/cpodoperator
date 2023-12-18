@@ -35,9 +35,9 @@ type State struct {
 	Namespace string          `json:"namespace"`
 	JobType   v1beta1.JobType `json:"jobtype"`
 	// TODO: @sxwl-donggang 序列化风格没保持一致，第一版竟然让sxwl不变更
-	JobStatus v1beta1.CPodJobPhase `json:"job_status"`
-	Info      string               `json:"info,omitempty"` // more info about jobstatus , especially when error occured
-	Extension interface{}          `json:"extension"`
+	JobStatus v1beta1.JobConditionType `json:"job_status"`
+	Info      string                   `json:"info,omitempty"` // more info about jobstatus , especially when error occured
+	Extension interface{}              `json:"extension"`
 }
 
 type Scheduler interface {

@@ -75,6 +75,7 @@ type CPodJobReconciler struct {
 //+kubebuilder:rbac:groups=cpod.sxwl.ai,resources=modelstorages,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=cpod.sxwl.ai,resources=datasetstorages,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="core",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="core",resources=nodes,verbs=get;list;watch
 //+kubebuilder:rbac:groups=kubeflow.org,resources=mpijobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=kubeflow.org,resources=mpijobs/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=kubeflow.org,resources=pytorchjobs,verbs=get;list;watch;create;update;patch;delete

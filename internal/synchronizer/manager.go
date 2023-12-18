@@ -2,6 +2,7 @@ package synchronizer
 
 import (
 	"context"
+	"sxwl/cpodoperator/api/v1beta1"
 	"sxwl/cpodoperator/pkg/provider/sxwl"
 	"time"
 
@@ -23,11 +24,16 @@ type Manager struct {
 	period time.Duration
 }
 
-func NewManager(kubeClient client.Client, scheduler sxwl.Scheduler, period time.Duration, logger logr.Logger) *Manager {
+func NewManager(cpodId string, kubeClient client.Client, scheduler sxwl.Scheduler, period time.Duration, logger logr.Logger) *Manager {
+	ch := make(chan sxwl.HeartBeatPayload, 1)
+	syncJob := NewSyncJob(kubeClient, scheduler, logger.WithName("syncjob"))
+	uploader := NewUploader(ch, scheduler, period, logger.WithName("uploader"))
+	cpodObserver := NewCPodObserver(kubeClient, cpodId, v1beta1.CPOD_NAMESPACE, ch, syncJob.getCreateFailedJobs, logger.WithName("cpodobserver"))
 	return &Manager{
 		runables: []Runnable{
-			NewSyncJob(kubeClient, scheduler, logger.WithName("syncjob")),
-			NewUploader(kubeClient, scheduler, logger.WithName("uploader")),
+			syncJob,
+			uploader,
+			cpodObserver,
 		},
 		period: period,
 	}
