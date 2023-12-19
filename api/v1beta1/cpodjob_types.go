@@ -155,12 +155,19 @@ type CPodJobSpec struct {
 	// +optional
 	Duration int32 `json:"duration,omitempty"`
 
+	Image string `json:"image"`
+
+	Command []string `json:"command,omitempty"`
+
+	Envs []v1.EnvVar `json:"env,omitempty"`
+
+	WorkerReplicas int32 `json:"workerReplicas,omitempty"`
 	// For example,
 	//   {
 	//     "PS": ReplicaSpec,
 	//     "Worker": ReplicaSpec,
 	//   }
-	ReplicaSpecs map[tov1.ReplicaType]*tov1.ReplicaSpec `json:"replicaSpecs"`
+	ReplicaSpecs map[tov1.ReplicaType]*tov1.ReplicaSpec `json:"replicaSpecs,omitempty"`
 }
 
 // Represents a git repository.
@@ -179,18 +186,6 @@ type CPodJobStatus struct {
 	// +listType=map
 	// +listMapKey=type
 	Conditions []JobCondition `json:"conditions,omitempty"`
-
-	// PodPhase is a label for the condition of a pod at the current time.
-	// +enum
-	Phase CPodJobPhase `json:"phase,omitempty"`
-
-	// The reason for the condition's last transition.
-	// +optional
-	Reason string `json:"reason,omitempty"`
-
-	// A human-readable message indicating details about the transition.
-	// +optional
-	Message string `json:"message,omitempty"`
 
 	// Represents time when the job was acknowledged by the job controller.
 	// It is not guaranteed to be set in happens-before order across separate operations.
@@ -211,9 +206,11 @@ type CPodJobStatus struct {
 	LastReconcileTime *metav1.Time `json:"lastReconcileTime,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Name",type=string,JSONPath=`.metadata.name`
+// +kubebuilder:printcolumn:name="Type",type=string,JSONPath=`.spec.jobType`
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 // CPodJob is the Schema for the cpodjobs API
 type CPodJob struct {
 	metav1.TypeMeta   `json:",inline"`

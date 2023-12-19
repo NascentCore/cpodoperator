@@ -18,9 +18,7 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"os"
-	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -36,8 +34,9 @@ import (
 
 	cpodv1beta1 "sxwl/cpodoperator/api/v1beta1"
 	"sxwl/cpodoperator/internal/controller"
-	"sxwl/cpodoperator/internal/synchronizer"
-	"sxwl/cpodoperator/pkg/provider/sxwl"
+
+	mpiv2 "github.com/kubeflow/mpi-operator/pkg/apis/kubeflow/v2beta1"
+	tov1 "github.com/kubeflow/training-operator/pkg/apis/kubeflow.org/v1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -50,6 +49,8 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(cpodv1beta1.AddToScheme(scheme))
+	utilruntime.Must(tov1.AddToScheme(scheme))
+	utilruntime.Must(mpiv2.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -106,8 +107,12 @@ func main() {
 	}
 
 	if err = (&controller.CPodJobReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("cpodjob-controller"),
+		Option: &controller.CPodJobOption{
+			StorageClassName: storageClassName,
+		},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CPodJob")
 		os.Exit(1)
@@ -137,14 +142,14 @@ func main() {
 
 	ctx := ctrl.SetupSignalHandler()
 
-	syncManager := synchronizer.NewManager(mgr.GetClient(), sxwl.NewScheduler(sxwlBaseUrl, sxwlAccessKey, sxwlAccessKey), time.Duration(syncPeriod)*time.Second, ctrl.Log)
-	go func() {
-		if mgr.GetCache().WaitForCacheSync(ctx) {
-			syncManager.Start(ctx)
-		} else {
-			setupLog.Error(fmt.Errorf("cannot wait for cache sync"), "problem waiting informer cache")
-		}
-	}()
+	// syncManager := synchronizer.NewManager(mgr.GetClient(), sxwl.NewScheduler(sxwlBaseUrl, sxwlAccessKey, sxwlAccessKey), time.Duration(syncPeriod)*time.Second, ctrl.Log)
+	// go func() {
+	// 	if mgr.GetCache().WaitForCacheSync(ctx) {
+	// 		syncManager.Start(ctx)
+	// 	} else {
+	// 		setupLog.Error(fmt.Errorf("cannot wait for cache sync"), "problem waiting informer cache")
+	// 	}
+	// }()
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctx); err != nil {

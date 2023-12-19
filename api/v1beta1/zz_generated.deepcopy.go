@@ -21,7 +21,8 @@ limitations under the License.
 package v1beta1
 
 import (
-	"github.com/kubeflow/training-operator/pkg/apis/kubeflow.org/v1"
+	kubeflow_orgv1 "github.com/kubeflow/training-operator/pkg/apis/kubeflow.org/v1"
+	"k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -92,17 +93,29 @@ func (in *CPodJobSpec) DeepCopyInto(out *CPodJobSpec) {
 		*out = new(GitRepo)
 		**out = **in
 	}
+	if in.Command != nil {
+		in, out := &in.Command, &out.Command
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.Envs != nil {
+		in, out := &in.Envs, &out.Envs
+		*out = make([]v1.EnvVar, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	if in.ReplicaSpecs != nil {
 		in, out := &in.ReplicaSpecs, &out.ReplicaSpecs
-		*out = make(map[v1.ReplicaType]*v1.ReplicaSpec, len(*in))
+		*out = make(map[kubeflow_orgv1.ReplicaType]*kubeflow_orgv1.ReplicaSpec, len(*in))
 		for key, val := range *in {
-			var outVal *v1.ReplicaSpec
+			var outVal *kubeflow_orgv1.ReplicaSpec
 			if val == nil {
 				(*out)[key] = nil
 			} else {
 				inVal := (*in)[key]
 				in, out := &inVal, &outVal
-				*out = new(v1.ReplicaSpec)
+				*out = new(kubeflow_orgv1.ReplicaSpec)
 				(*in).DeepCopyInto(*out)
 			}
 			(*out)[key] = outVal

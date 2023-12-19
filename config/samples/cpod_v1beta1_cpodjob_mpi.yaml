@@ -8,5 +8,15 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: cpodjob
   name: cpodjob-sample
+  namespace: cpodoperator
 spec:
-  # TODO(user): Add fields here
+  image: dockerhub.kubekey.local/kubesphereio/mpi-horovod-mnist:latest
+  command:
+    - mpirun
+  jobType: mpi
+  gpuRequiredPerReplica: 1
+  gpuType: NVIDIA-GeForce-RTX-3090
+  ckptPath: /workspace/ckpt
+  ckptVolumeSize: 100
+
+  

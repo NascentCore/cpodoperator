@@ -1,0 +1,22 @@
+apiVersion: cpod.sxwl.ai/v1beta1
+kind: CPodJob
+metadata:
+  labels:
+    app.kubernetes.io/name: cpodjob
+    app.kubernetes.io/instance: cpodjob-sample
+    app.kubernetes.io/part-of: cpodjob
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: cpodjob
+  name: cpodjob-sample
+  namespace: cpodoperator
+spec:
+  image: dockerhub.kubekey.local/kubesphereio/mpi-horovod-mnist:latest
+  command:
+    - mpirun
+  jobType: pytorchjob
+  gpuRequiredPerReplica: 1
+  gpuType: NVIDIA-GeForce-RTX-3090
+  ckptPath: /workspace/ckpt
+  ckptVolumeSize: 100
+
+  
