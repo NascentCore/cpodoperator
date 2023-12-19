@@ -137,7 +137,9 @@ func main() {
 
 	ctx := ctrl.SetupSignalHandler()
 
-	syncManager := synchronizer.NewManager(mgr.GetClient(), sxwl.NewScheduler(sxwlBaseUrl, sxwlAccessKey, sxwlAccessKey), time.Duration(syncPeriod)*time.Second, ctrl.Log)
+	accessKey := os.Getenv("ACCESS_KEY") //from configmap provided by cairong
+	cpodId := os.Getenv("CPOD_ID")       //from configmap provided by cairong
+	syncManager := synchronizer.NewManager(cpodId, mgr.GetClient(), sxwl.NewScheduler(sxwlBaseUrl, accessKey, cpodId), time.Duration(syncPeriod)*time.Second, ctrl.Log)
 	go func() {
 		if mgr.GetCache().WaitForCacheSync(ctx) {
 			syncManager.Start(ctx)
