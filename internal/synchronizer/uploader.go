@@ -43,7 +43,7 @@ func (u *Uploader) Start(ctx context.Context) {
 			Name:      cpod.Name,
 			Namespace: cpod.Namespace,
 			JobType:   cpod.Spec.JobType,
-			JobStatus: v1beta1.CPodJobPhase(cpod.Status.Phase),
+			// JobStatus: v1beta1.CPodJobPhase(cpod.Status.Phase),
 		})
 		// TODO: build heartbeat payload
 		err = u.scheduler.HeartBeat(sxwl.HeartBeatPayload{})
