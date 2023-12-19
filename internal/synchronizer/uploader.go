@@ -39,7 +39,7 @@ func (u *Uploader) Start(ctx context.Context) {
 		u.logger.Info("no data to upload")
 		return
 	}
-	u.logger.Info(fmt.Sprintf("data updated at %d seconds ago", time.Now().Sub(u.cachedPayload.UpdateTime).Seconds()))
+	u.logger.Info(fmt.Sprintf("data updated at %d seconds ago", int(time.Now().Sub(u.cachedPayload.UpdateTime).Seconds())))
 	err := u.scheduler.HeartBeat(u.cachedPayload)
 	if err != nil {
 		u.logger.Error(err, "upload cpod status data failed")
