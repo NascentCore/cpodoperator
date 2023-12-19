@@ -98,5 +98,18 @@ spec:
           requests:
             cpu: 10m
             memory: 64Mi
+        env:
+        - name: DEPLOY
+          value: DEBUG
+        - name: ACCESS_KEY
+          valueFrom:
+            configMapKeyRef:
+              name: cpod-info
+              key: access_key
+        - name: CPOD_ID
+          valueFrom:
+            configMapKeyRef:
+              name: cpod-info
+              key: cpod_id
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
