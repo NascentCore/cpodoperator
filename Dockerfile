@@ -1,5 +1,5 @@
 # Build the manager binary
-FROM golang:1.20 as builder
+FROM golang:1.21 as builder
 ARG TARGETOS
 ARG TARGETARCH
 
@@ -15,6 +15,13 @@ RUN go mod download
 COPY cmd/main.go cmd/main.go
 COPY api/ api/
 COPY internal/controller/ internal/controller/
+COPY internal/synchronizer/ internal/synchronizer/
+
+COPY pkg/modelhub/ pkg/modelhub/
+COPY pkg/resource/ pkg/resource/
+COPY pkg/util/ pkg/util/
+COPY pkg/provider/sxwl/ pkg/provider/sxwl/
+
 
 # Build
 # the GOARCH has not a default value to allow the binary be built according to the host where the command
