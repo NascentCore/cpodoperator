@@ -8343,6 +8343,9 @@ spec:
                 description: 'For example, { "PS": ReplicaSpec, "Worker": ReplicaSpec,
                   }'
                 type: object
+              uploadModel:
+                description: whether upload model to oss volume
+                type: boolean
               workerReplicas:
                 format: int32
                 type: integer

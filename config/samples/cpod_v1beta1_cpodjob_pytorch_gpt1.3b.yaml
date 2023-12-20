@@ -1,4 +1,4 @@
-# Test case for modihand
+# Test case for gpt-1.3b
 apiVersion: cpod.sxwl.ai/v1beta1
 kind: CPodJob
 metadata:
@@ -11,20 +11,20 @@ metadata:
   name: cpodjob-sample
   namespace: cpodoperator
 spec:
-  image: dockerhub.kubekey.local/kubesphereio/modihand:test
+  image: registry.cn-beijing.aliyuncs.com/sxwl-ai/modelscope_gpt3_2h16g4tp:v1
   command:
     - torchrun
-    - run.py
+    - --nnodes=2
+    - --nproc_per_node=8
+    - finetune_poetry.py
   jobType: pytorch
-  gpuRequiredPerReplica: 1
+  gpuRequiredPerReplica: 8
   gpuType: NVIDIA-GeForce-RTX-3090
-  ckptPath: /workspace/ckpt
-  ckptVolumeSize: 100
-  workerReplicas: 1
+  workerReplicas: 2
   pretrainModelName: chatglm3-6b
   pretrainModelPath: /sixpen_models/chatlm3
   datasetName: modihand-dataset
-  datasetPath: /tmp/ds
-  uploadModel: true 
+  datasetPath: /workspace/chinese-poetry-collection
+  
 
   
