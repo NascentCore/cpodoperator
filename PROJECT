@@ -31,4 +31,20 @@ resources:
   group: cpod
   kind: Deployment
   version: v1
+- api:
+    crdVersion: v1
+    namespaced: true
+  domain: sxwl.ai
+  group: cpod
+  kind: ModelStorage
+  path: sxwl/cpodoperator/api/v1
+  version: v1
+- api:
+    crdVersion: v1
+    namespaced: true
+  domain: sxwl.ai
+  group: cpod
+  kind: DataSetStorage
+  path: sxwl/cpodoperator/api/v1
+  version: v1
 version: "3"
