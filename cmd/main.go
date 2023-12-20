@@ -64,6 +64,9 @@ func main() {
 	var sxwlBaseUrl string
 	var sxwlAccessKey string
 	var sxwlIdentity string
+	var modelUploadJobImage string
+	var modelUploadJobBackoffLimit int
+	var modelUploadOssBucketName string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -75,6 +78,9 @@ func main() {
 	flag.StringVar(&sxwlBaseUrl, "sxwl-baseurl", "https://aiapi.yangapi.cn", "the sxwl url ")
 	flag.StringVar(&sxwlAccessKey, "sxwl-accesskey", "", "the access key to access sxwl ")
 	flag.StringVar(&sxwlIdentity, "sxwl-identity", "", "the identity to access sxwl ")
+	flag.StringVar(&modelUploadJobImage, "model-upload-job-image", "", "the image of model upload job")
+	flag.IntVar(&modelUploadJobBackoffLimit, "model-upload-job-backoff-lmit", 10, "the backoff limit of model upload job")
+	flag.StringVar(&modelUploadOssBucketName, "model-upload-job-bucket-name", "", "the oss bucket name of model upload job")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -111,7 +117,10 @@ func main() {
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("cpodjob-controller"),
 		Option: &controller.CPodJobOption{
-			StorageClassName: storageClassName,
+			StorageClassName:           storageClassName,
+			ModelUploadJobImage:        modelUploadJobImage,
+			ModelUploadJobBackoffLimit: int32(modelUploadJobBackoffLimit),
+			ModelUploadOssBucketName:   modelUploadOssBucketName,
 		},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CPodJob")

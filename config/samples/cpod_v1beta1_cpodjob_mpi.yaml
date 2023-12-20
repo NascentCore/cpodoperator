@@ -18,5 +18,6 @@ spec:
   gpuType: NVIDIA-GeForce-RTX-3090
   ckptPath: /workspace/ckpt
   ckptVolumeSize: 100
+  workerReplicas: 1
 
   

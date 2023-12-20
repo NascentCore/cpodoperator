@@ -36,9 +36,6 @@ const (
 	// The training is running without error.
 	JobRunning JobConditionType = "Running"
 
-	// JobSuspended means the job is pending.
-	JobPending JobConditionType = "Pending"
-
 	// JobSucceeded means all sub-resources (e.g. services/pods) of this job
 	// reached phase have terminated in success.
 	// The training is complete without error.
@@ -47,12 +44,12 @@ const (
 	// JobSucceeded means all sub-resources (e.g. services/pods) of this job
 	// reached phase have terminated in success.
 	// The training is complete without error.
-	ModelUploading JobConditionType = "ModelUploading"
+	JobModelUploading JobConditionType = "ModelUploading"
 
 	// JobSucceeded means all sub-resources (e.g. services/pods) of this job
 	// reached phase have terminated in success.
 	// The training is complete without error.
-	ModelUploaded JobConditionType = "ModelUploaded"
+	JobModelUploaded JobConditionType = "ModelUploaded"
 
 	// JobFailed means one or more sub-resources (e.g. services/pods) of this job
 	// reached phase failed with no restarting.
@@ -67,7 +64,7 @@ type JobType string
 const (
 	JobTypeMPI        JobType = "mpi"
 	JobTypePytorch    JobType = "pytorch"
-	JobTypeTensorFlow JobType = "TensorFlow"
+	JobTypeTensorFlow JobType = "tensorFlow"
 )
 
 // CPodJobPhase is a label for the condition of a cpodjob at the current time.
@@ -150,6 +147,8 @@ type CPodJobSpec struct {
 	ModelSavePath string `json:"modelSavePath,omitempty"`
 	// the size(MB) of modelsave volume which will created by cpodoperator
 	ModelSaveVolumeSize int32 `json:"modelSaveVolumeSize,omitempty"`
+	// whether upload model to oss volume
+	UploadModel bool `json:"uploadModel,omitempty"`
 
 	// total minutes for job to run , if not set or set to 0 , no time limit
 	// +optional

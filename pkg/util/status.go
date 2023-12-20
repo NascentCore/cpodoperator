@@ -66,7 +66,7 @@ func setCondition(jobStatus *v1beta1.CPodJobStatus, condition v1beta1.JobConditi
 		return
 	}
 
-	currentCond := getCondition(*jobStatus, condition.Type)
+	currentCond := GetCondition(*jobStatus, condition.Type)
 
 	// Do nothing if condidtion doesn't chage
 	if currentCond != nil && currentCond.Status == condition.Status && currentCond.Reason == condition.Reason && currentCond.Message == condition.Message {
@@ -83,7 +83,7 @@ func setCondition(jobStatus *v1beta1.CPodJobStatus, condition v1beta1.JobConditi
 
 }
 
-func getCondition(status v1beta1.CPodJobStatus, condType v1beta1.JobConditionType) *v1beta1.JobCondition {
+func GetCondition(status v1beta1.CPodJobStatus, condType v1beta1.JobConditionType) *v1beta1.JobCondition {
 	for _, condition := range status.Conditions {
 		if condition.Type == condType {
 			return &condition
@@ -103,6 +103,11 @@ func filterOutCondition(conditions []v1beta1.JobCondition, condType v1beta1.JobC
 		if (condType == v1beta1.JobFailed || condType == v1beta1.JobSucceeded) && condition.Type == v1beta1.JobRunning {
 			condition.Status = v1.ConditionFalse
 		}
+
+		if condType == v1beta1.JobModelUploaded && condition.Type == v1beta1.JobModelUploading {
+			continue
+		}
+
 		newConditions = append(newConditions, condition)
 	}
 	return newConditions
