@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -35,6 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	cpodv1 "sxwl/cpodoperator/api/v1"
 	"sxwl/cpodoperator/api/v1beta1"
 	cpodv1beta1 "sxwl/cpodoperator/api/v1beta1"
 	"sxwl/cpodoperator/pkg/util"
@@ -69,6 +71,12 @@ type CPodJobReconciler struct {
 //+kubebuilder:rbac:groups=cpod.sxwl.ai,resources=cpodjobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=cpod.sxwl.ai,resources=cpodjobs/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=cpod.sxwl.ai,resources=cpodjobs/finalizers,verbs=update
+//+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=,resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=kubeflow.org,resources=mpijobs,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=kubeflow.org,resources=mpijobs/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=kubeflow.org,resources=pytorchjobs,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=kubeflow.org,resources=pytorchjobs/status,verbs=get;update;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -131,7 +139,7 @@ func (c *CPodJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ 
 		}
 	}
 
-	if util.IsSucceeded(cpodjob.Status) && cpodjob.Spec.UploadModel {
+	if util.IsSucceeded(cpodjob.Status) && cpodjob.Spec.UploadModel && cpodjob.Spec.ModelSavePath != "" {
 		err := c.uploadSavedModel(ctx, cpodjob)
 		if err != nil {
 			return ctrl.Result{}, err
@@ -157,7 +165,7 @@ func (c *CPodJobReconciler) needReconcile(cpodjob *cpodv1beta1.CPodJob) bool {
 		return false
 	}
 	if util.IsSucceeded(cpodjob.Status) {
-		if cpodjob.Spec.UploadModel {
+		if cpodjob.Spec.UploadModel && cpodjob.Spec.ModelSavePath != "" {
 			if cond := util.GetCondition(cpodjob.Status, cpodv1beta1.JobModelUploaded); cond != nil {
 				return false
 			}
@@ -180,12 +188,24 @@ func (c *CPodJobReconciler) CreateBaseJob(ctx context.Context, cpodjob cpodv1bet
 	// 5. 网络：
 	//     * 分布式训练任务
 
-	var targetJob client.Object
-
-	// 处理挂卷逻辑
-	// TODO: @sxwl-donggang为什么需要挂载这么多卷？
 	volumes := []corev1.Volume{}
 	volumeMounts := []corev1.VolumeMount{}
+
+	addVolume := func(name, claimName, mountPath string) {
+		volumes = append(volumes, corev1.Volume{
+			Name: name,
+			VolumeSource: corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: claimName,
+					ReadOnly:  false,
+				},
+			},
+		})
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      name,
+			MountPath: mountPath,
+		})
+	}
 
 	if cpodjob.Spec.CKPTPath != "" {
 		ckptPVC, err := c.GetCKPTPVC(ctx, &cpodjob)
@@ -193,103 +213,81 @@ func (c *CPodJobReconciler) CreateBaseJob(ctx context.Context, cpodjob cpodv1bet
 			c.Recorder.Eventf(&cpodjob, corev1.EventTypeWarning, "GetCKPTPVCFailed", "Get ckpt pvc failed")
 			return err
 		}
-		volumes = append(volumes, corev1.Volume{
-			Name: "ckpt",
-			VolumeSource: corev1.VolumeSource{
-				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: ckptPVC.Name,
-					ReadOnly:  false,
-				},
-			},
-		})
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      "ckpt",
-			MountPath: cpodjob.Spec.CKPTPath,
-		})
+		addVolume("ckpt", ckptPVC.Name, cpodjob.Spec.CKPTPath)
 	}
 
 	if cpodjob.Spec.ModelSavePath != "" && cpodjob.Spec.ModelSaveVolumeSize != 0 {
 		modelSavePVC, err := c.GetModelSavePVC(ctx, &cpodjob)
 		if err != nil {
-			c.Recorder.Eventf(&cpodjob, corev1.EventTypeWarning, "GetCKPTPVCFailed", "Get ckpt pvc failed")
+			c.Recorder.Eventf(&cpodjob, corev1.EventTypeWarning, "GetModelSavePVCFailed", "Get model save pvc failed")
 			return err
 		}
-		volumes = append(volumes, corev1.Volume{
-			Name: "modelsave",
-			VolumeSource: corev1.VolumeSource{
-				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: modelSavePVC.Name,
-					ReadOnly:  false,
-				},
-			},
-		})
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      "modelsave",
-			MountPath: cpodjob.Spec.CKPTPath,
-		})
-
+		addVolume("modelsave", modelSavePVC.Name, cpodjob.Spec.ModelSavePath)
 	}
 
 	if cpodjob.Spec.DatasetPath != "" && cpodjob.Spec.DatasetName != "" {
-		datasetPVC := &corev1.PersistentVolumeClaim{}
-		if err := c.Client.Get(ctx, client.ObjectKey{Namespace: cpodjob.Namespace, Name: cpodjob.Spec.DatasetName}, datasetPVC); err != nil {
+		dataset := &cpodv1.DataSetStorage{}
+		if err := c.Client.Get(ctx, client.ObjectKey{Namespace: cpodjob.Namespace, Name: cpodjob.Spec.DatasetName}, dataset); err != nil {
 			if apierrors.IsNotFound(err) {
-				c.Recorder.Eventf(&cpodjob, corev1.EventTypeWarning, "GetDatasetPVCFailed", "dataset pvc not found")
-				util.UpdateJobConditions(&cpodjob.Status, cpodv1beta1.JobFailed, corev1.ConditionTrue, "GetDatasetPVCFailed", "dataset pvc not found")
+				c.Recorder.Eventf(&cpodjob, corev1.EventTypeWarning, "DatasetFailed", "Dataset not found")
+				util.UpdateJobConditions(&cpodjob.Status, cpodv1beta1.JobFailed, corev1.ConditionTrue, "GetDatasetFailed", "Dataset not found")
 				return c.UpdateStatus(ctx, &cpodjob, nil)
 			}
 			return err
 		}
-		volumes = append(volumes, corev1.Volume{
-			Name: "dataset",
-			VolumeSource: corev1.VolumeSource{
-				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: datasetPVC.Name,
-					ReadOnly:  false,
-				},
-			},
-		})
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      "dataset",
-			MountPath: cpodjob.Spec.DatasetPath,
-		})
+		if dataset.Status.Phase != "done" {
+			c.Recorder.Eventf(&cpodjob, corev1.EventTypeWarning, "GetDatasetFailed", "Dateset not found")
+			util.UpdateJobConditions(&cpodjob.Status, cpodv1beta1.JobFailed, corev1.ConditionTrue, "GetPretrainModelFailed", "Pretrain model downloader failed")
+			return c.UpdateStatus(ctx, &cpodjob, nil)
+		}
+
+		datasetPVC := &corev1.PersistentVolumeClaim{}
+		if err := c.Client.Get(ctx, client.ObjectKey{Namespace: cpodjob.Namespace, Name: dataset.Spec.PVC}, datasetPVC); err != nil {
+			if apierrors.IsNotFound(err) {
+				c.Recorder.Eventf(&cpodjob, corev1.EventTypeWarning, "GetDatasetPVCFailed", "Dataset PVC not found")
+				util.UpdateJobConditions(&cpodjob.Status, cpodv1beta1.JobFailed, corev1.ConditionTrue, "GetDatasetPVCFailed", "Dataset PVC not found")
+				return c.UpdateStatus(ctx, &cpodjob, nil)
+			}
+			return err
+		}
+		addVolume("dataset", datasetPVC.Name, cpodjob.Spec.DatasetPath)
 	}
 
-	// TODO: @sxwl-donggang pretrain model and pretrain model path must not be null at the same time
 	if cpodjob.Spec.PretrainModelName != "" && cpodjob.Spec.PretrainModelPath != "" {
-		pretrainModelPVC := &corev1.PersistentVolumeClaim{}
-		if err := c.Client.Get(ctx, client.ObjectKey{Namespace: cpodjob.Namespace, Name: cpodjob.Spec.PretrainModelName}, pretrainModelPVC); err != nil {
+		pretrainModel := &cpodv1.ModelStorage{}
+		if err := c.Client.Get(ctx, client.ObjectKey{Namespace: cpodjob.Namespace, Name: cpodjob.Spec.PretrainModelName}, pretrainModel); err != nil {
 			if apierrors.IsNotFound(err) {
-				c.Recorder.Eventf(&cpodjob, corev1.EventTypeWarning, "GetPretrainModelPVCFailed", "pretrainModel  pvc not found")
-				util.UpdateJobConditions(&cpodjob.Status, cpodv1beta1.JobFailed, corev1.ConditionTrue, "GetPretrainModelPVCFailed", " pvc not found")
+				c.Recorder.Eventf(&cpodjob, corev1.EventTypeWarning, "GetPretrainModelFailed", "Pretrain model not found")
+				util.UpdateJobConditions(&cpodjob.Status, cpodv1beta1.JobFailed, corev1.ConditionTrue, "GetPretrainModelFailed", "Pretrain model not found")
+				return c.UpdateStatus(ctx, &cpodjob, nil)
+			}
+			return err
+		}
+		if pretrainModel.Status.Phase != "done" {
+			c.Recorder.Eventf(&cpodjob, corev1.EventTypeWarning, "GetPretrainModelFailed", "Pretrain model not found")
+			util.UpdateJobConditions(&cpodjob.Status, cpodv1beta1.JobFailed, corev1.ConditionTrue, "GetPretrainModelFailed", "Pretrain model downloader failed")
+			return c.UpdateStatus(ctx, &cpodjob, nil)
+		}
+
+		pretrainModelPVC := &corev1.PersistentVolumeClaim{}
+		if err := c.Client.Get(ctx, client.ObjectKey{Namespace: cpodjob.Namespace, Name: pretrainModel.Spec.PVC}, pretrainModelPVC); err != nil {
+			if apierrors.IsNotFound(err) {
+				c.Recorder.Eventf(&cpodjob, corev1.EventTypeWarning, "GetPretrainModelPVCFailed", "Pretrain model PVC not found")
+				util.UpdateJobConditions(&cpodjob.Status, cpodv1beta1.JobFailed, corev1.ConditionTrue, "GetPretrainModelPVCFailed", "Pretrain model PVC not found")
 				return c.UpdateStatus(ctx, &cpodjob, nil)
 			}
 		}
-		volumes = append(volumes, corev1.Volume{
-			Name: "pretrain-model",
-			VolumeSource: corev1.VolumeSource{
-				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: pretrainModelPVC.Name,
-					ReadOnly:  true,
-				},
-			},
-		})
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      "pretrain-model",
-			MountPath: cpodjob.Spec.PretrainModelPath,
-		})
+		addVolume("pretrain-model", pretrainModelPVC.Name, cpodjob.Spec.PretrainModelPath)
 	}
 
-	runpolicy := tov1.RunPolicy{
-		CleanPodPolicy: tov1.CleanPodPolicyPointer(tov1.CleanPodPolicyRunning),
-		// TODO: @sxwl-donggang
-		// SchedulingPolicy:
-	}
-
+	// Set replicas based on worker replicas
 	workerReplicas := int32(1)
 	if cpodjob.Spec.WorkerReplicas != 0 {
 		workerReplicas = int32(cpodjob.Spec.WorkerReplicas)
 	}
+
+	// Create target job based on job type
+	var targetJob client.Object
 
 	switch cpodjob.Spec.JobType {
 	case cpodv1beta1.JobTypeMPI:
@@ -333,7 +331,7 @@ func (c *CPodJobReconciler) CreateBaseJob(ctx context.Context, cpodjob cpodv1bet
 										VolumeMounts: volumeMounts,
 										Resources: corev1.ResourceRequirements{
 											Requests: corev1.ResourceList{
-												corev1.ResourceName("nvidia.com/gpu"): resource.MustParse(string(cpodjob.Spec.GPURequiredPerReplica)),
+												corev1.ResourceName("nvidia.com/gpu"): resource.MustParse(strconv.Itoa(int(cpodjob.Spec.GPURequiredPerReplica))),
 											},
 										},
 									},
@@ -364,9 +362,10 @@ func (c *CPodJobReconciler) CreateBaseJob(ctx context.Context, cpodjob cpodv1bet
 				ElasticPolicy: &tov1.ElasticPolicy{
 					RDZVBackend: &backendC10D,
 				},
-				RunPolicy: runpolicy,
+				RunPolicy: tov1.RunPolicy{
+					CleanPodPolicy: tov1.CleanPodPolicyPointer(tov1.CleanPodPolicyRunning),
+				},
 				PyTorchReplicaSpecs: map[tov1.ReplicaType]*tov1.ReplicaSpec{
-					// 不设置Master
 					tov1.PyTorchJobReplicaTypeWorker: {
 						Replicas:      &workerReplicas,
 						RestartPolicy: tov1.RestartPolicyOnFailure,
@@ -385,10 +384,10 @@ func (c *CPodJobReconciler) CreateBaseJob(ctx context.Context, cpodjob cpodv1bet
 										VolumeMounts: volumeMounts,
 										Resources: corev1.ResourceRequirements{
 											Requests: corev1.ResourceList{
-												corev1.ResourceName("nvidia.com/gpu"): resource.MustParse(string(cpodjob.Spec.GPURequiredPerReplica)),
+												corev1.ResourceName("nvidia.com/gpu"): resource.MustParse(strconv.Itoa(int(cpodjob.Spec.GPURequiredPerReplica))),
 											},
 											Limits: corev1.ResourceList{
-												corev1.ResourceName("nvidia.com/gpu"): resource.MustParse(string(cpodjob.Spec.GPURequiredPerReplica)),
+												corev1.ResourceName("nvidia.com/gpu"): resource.MustParse(strconv.Itoa(int(cpodjob.Spec.GPURequiredPerReplica))),
 											},
 										},
 									},
@@ -404,6 +403,7 @@ func (c *CPodJobReconciler) CreateBaseJob(ctx context.Context, cpodjob cpodv1bet
 			},
 		}
 	}
+
 	return client.IgnoreAlreadyExists(c.Client.Create(ctx, targetJob))
 }
 
@@ -423,6 +423,7 @@ func (c *CPodJobReconciler) UpdateStatus(ctx context.Context, cpodjob *cpodv1bet
 			cpodjob.Status.CompletionTime = baseJobStatus.CompletionTime
 		} else {
 			util.UpdateJobConditions(&cpodjob.Status, cpodv1beta1.JobRunning, corev1.ConditionTrue, "BaseJobRunning", "BaseJob is running")
+			return fmt.Errorf("baseJob is running")
 		}
 	}
 
@@ -508,7 +509,7 @@ func (c *CPodJobReconciler) GetCKPTPVC(ctx context.Context, cpodjob *cpodv1beta1
 					AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 					Resources: corev1.ResourceRequirements{
 						Requests: corev1.ResourceList{
-							corev1.ResourceStorage: *resource.NewQuantity(int64(cpodjob.Spec.CKPTVolumeSize), resource.BinarySI),
+							corev1.ResourceStorage: *resource.NewQuantity(int64(cpodjob.Spec.CKPTVolumeSize*1024*1024), resource.BinarySI),
 						},
 					},
 					StorageClassName: &c.Option.StorageClassName,
@@ -553,7 +554,7 @@ func (c *CPodJobReconciler) GetModelSavePVC(ctx context.Context, cpodjob *cpodv1
 					AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 					Resources: corev1.ResourceRequirements{
 						Requests: corev1.ResourceList{
-							corev1.ResourceStorage: *resource.NewQuantity(int64(cpodjob.Spec.ModelSaveVolumeSize), resource.BinarySI),
+							corev1.ResourceStorage: *resource.NewQuantity(int64(cpodjob.Spec.ModelSaveVolumeSize*1024*1024), resource.BinarySI),
 						},
 					},
 					StorageClassName: &c.Option.StorageClassName,
@@ -610,7 +611,7 @@ func (c *CPodJobReconciler) uploadSavedModel(ctx context.Context, cpodjob *v1bet
 	parallelism := int32(1)
 	if err := c.Client.Get(ctx, client.ObjectKey{Namespace: cpodjob.Namespace, Name: uploadJobName}, uploadJob); err != nil {
 		if apierrors.IsNotFound(err) {
-			c.Client.Create(ctx, &batchv1.Job{
+			err := c.Client.Create(ctx, &batchv1.Job{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      uploadJobName,
 					Namespace: cpodjob.Namespace,
@@ -646,12 +647,12 @@ func (c *CPodJobReconciler) uploadSavedModel(ctx context.Context, cpodjob *v1bet
 												},
 											},
 										},
+									},
+									EnvFrom: []corev1.EnvFromSource{
 										{
-											ValueFrom: &corev1.EnvVarSource{
-												SecretKeyRef: &corev1.SecretKeySelector{
-													LocalObjectReference: corev1.LocalObjectReference{
-														Name: v1beta1.K8S_SECRET_NAME_FOR_OSS,
-													},
+											SecretRef: &corev1.SecretEnvSource{
+												LocalObjectReference: corev1.LocalObjectReference{
+													Name: v1beta1.K8S_SECRET_NAME_FOR_OSS,
 												},
 											},
 										},
@@ -674,10 +675,15 @@ func (c *CPodJobReconciler) uploadSavedModel(ctx context.Context, cpodjob *v1bet
 									},
 								},
 							},
+							RestartPolicy: corev1.RestartPolicyOnFailure,
 						},
 					},
 				},
 			})
+			if err != nil {
+				return err
+			}
+			util.UpdateJobConditions(&cpodjob.Status, cpodv1beta1.JobModelUploading, corev1.ConditionTrue, "UploadingModel", "modelupload job is running")
 		}
 		return err
 	}

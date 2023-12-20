@@ -4,6 +4,28 @@ kind: ClusterRole
 metadata:
   name: manager-role
 rules:
+- resources:
+  - persistentvolumeclaims
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - cpod.sxwl.ai
   resources:
@@ -56,21 +78,43 @@ rules:
   - get
   - patch
   - update
-- apiGroups: ["kubeflow.org"] 
-  resources: ["mpijobs"]
-  verbs: ["create", "delete", "get", "watch", "list"]
-- apiGroups: ["kubeflow.org"] 
-  resources: ["pytorchjobs"]
-  verbs: ["create", "delete", "get", "watch", "list"]
-- apiGroups: ["batch"] 
-  resources: ["jobs"]
-  verbs: ["create", "delete", "get", "watch", "list"]
-- apiGroups: ["cpod.sxwl.ai"] 
-  resources: ["datasetstorages" , "modelstorages"]
-  verbs: ["get", "watch", "list"]
-- apiGroups: [""] 
-  resources: ["persistentvolumeclaims"]
-  verbs: ["create", "delete", "get", "watch", "list"]
-- apiGroups: [""] 
-  resources: ["nodes"]
-  verbs: ["get", "watch", "list"]
+- apiGroups:
+  - kubeflow.org
+  resources:
+  - mpijobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kubeflow.org
+  resources:
+  - mpijobs/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - kubeflow.org
+  resources:
+  - pytorchjobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kubeflow.org
+  resources:
+  - pytorchjobs/status
+  verbs:
+  - get
+  - patch
+  - update

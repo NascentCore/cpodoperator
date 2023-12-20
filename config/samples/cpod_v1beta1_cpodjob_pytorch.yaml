@@ -8,8 +8,9 @@ metadata:
     app.kubernetes.io/part-of: cpodjob
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: cpodjob
-  name: cpodjob-sample
-  namespace: cpodoperator
+  name: modihand-sample
+  # namespace: cpodoperator
+  namespace: cpod
 spec:
   image: dockerhub.kubekey.local/kubesphereio/modihand:test
   command:
@@ -18,13 +19,13 @@ spec:
   jobType: pytorch
   gpuRequiredPerReplica: 1
   gpuType: NVIDIA-GeForce-RTX-3090
-  ckptPath: /workspace/ckpt
-  ckptVolumeSize: 100
   workerReplicas: 1
   pretrainModelName: chatglm3-6b
   pretrainModelPath: /sixpen_models/chatlm3
   datasetName: modihand-dataset
   datasetPath: /tmp/ds
   uploadModel: true 
+  modelSaveVolumeSize: 100
+  modelSavePath: /sixpen_models/modihand_outputs/test_10059997
 
   
