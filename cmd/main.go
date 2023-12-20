@@ -78,9 +78,9 @@ func main() {
 	flag.StringVar(&sxwlBaseUrl, "sxwl-baseurl", "https://aiapi.yangapi.cn", "the sxwl url ")
 	flag.StringVar(&sxwlAccessKey, "sxwl-accesskey", "", "the access key to access sxwl ")
 	flag.StringVar(&sxwlIdentity, "sxwl-identity", "", "the identity to access sxwl ")
-	flag.StringVar(&modelUploadJobImage, "model-upload-job-image", "", "the image of model upload job")
+	flag.StringVar(&modelUploadJobImage, "model-upload-job-image", "dockerhub.kubekey.local/kubesphereio/modeluploader:d1de547", "the image of model upload job")
 	flag.IntVar(&modelUploadJobBackoffLimit, "model-upload-job-backoff-lmit", 10, "the backoff limit of model upload job")
-	flag.StringVar(&modelUploadOssBucketName, "model-upload-job-bucket-name", "", "the oss bucket name of model upload job")
+	flag.StringVar(&modelUploadOssBucketName, "model-upload-job-bucket-name", "sxwl-ai-test", "the oss bucket name of model upload job")
 	opts := zap.Options{
 		Development: true,
 	}

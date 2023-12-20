@@ -11,16 +11,15 @@ metadata:
   name: cpodjob-sample
   namespace: cpodoperator
 spec:
-  image: registry.cn-beijing.aliyuncs.com/sxwl-ai/modelscope_gpt3_2h16g4tp:v1
+  image: registry.cn-beijing.aliyuncs.com/sxwl-ai/modelscope_gpt3_1h1g1dp:latest
   command:
     - torchrun
-    - --nnodes=2
     - --nproc_per_node=8
     - finetune_poetry.py
   jobType: pytorch
   gpuRequiredPerReplica: 8
   gpuType: NVIDIA-GeForce-RTX-3090
-  workerReplicas: 2
+  workerReplicas: 1
   pretrainModelName: chatglm3-6b
   pretrainModelPath: /sixpen_models/chatlm3
   datasetName: modihand-dataset
