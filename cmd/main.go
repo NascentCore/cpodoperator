@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	cpodv1 "sxwl/cpodoperator/api/v1"
 	cpodv1beta1 "sxwl/cpodoperator/api/v1beta1"
 	"sxwl/cpodoperator/internal/controller"
 
@@ -49,6 +50,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(cpodv1beta1.AddToScheme(scheme))
+	utilruntime.Must(cpodv1.AddToScheme(scheme))
 	utilruntime.Must(tov1.AddToScheme(scheme))
 	utilruntime.Must(mpiv2.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
@@ -78,7 +80,7 @@ func main() {
 	flag.StringVar(&sxwlBaseUrl, "sxwl-baseurl", "https://aiapi.yangapi.cn", "the sxwl url ")
 	flag.StringVar(&sxwlAccessKey, "sxwl-accesskey", "", "the access key to access sxwl ")
 	flag.StringVar(&sxwlIdentity, "sxwl-identity", "", "the identity to access sxwl ")
-	flag.StringVar(&modelUploadJobImage, "model-upload-job-image", "dockerhub.kubekey.local/kubesphereio/modeluploader:d1de547", "the image of model upload job")
+	flag.StringVar(&modelUploadJobImage, "model-upload-job-image", "sxwl-registry.cn-beijing.cr.aliyuncs.com/sxwl-ai/modeluploader:ea1b518", "the image of model upload job")
 	flag.IntVar(&modelUploadJobBackoffLimit, "model-upload-job-backoff-lmit", 10, "the backoff limit of model upload job")
 	flag.StringVar(&modelUploadOssBucketName, "model-upload-job-bucket-name", "sxwl-ai-test", "the oss bucket name of model upload job")
 	opts := zap.Options{

@@ -8,8 +8,8 @@ metadata:
     app.kubernetes.io/part-of: cpodjob
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: cpodjob
-  name: cpodjob-sample
-  namespace: cpodoperator
+  name: gpt3
+  namespace: cpod
 spec:
   image: registry.cn-beijing.aliyuncs.com/sxwl-ai/modelscope_gpt3_1h1g1dp:latest
   command:
@@ -20,9 +20,9 @@ spec:
   gpuRequiredPerReplica: 8
   gpuType: NVIDIA-GeForce-RTX-3090
   workerReplicas: 1
-  pretrainModelName: chatglm3-6b
-  pretrainModelPath: /sixpen_models/chatlm3
-  datasetName: modihand-dataset
+  pretrainModelName: gpt3
+  pretrainModelPath:  /workspace/nlp_gpt3_text-generation_1.3B
+  datasetName: dataset-storage-944a4f16092746ea
   datasetPath: /workspace/chinese-poetry-collection
   
 

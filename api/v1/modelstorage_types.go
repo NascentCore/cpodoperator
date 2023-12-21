@@ -41,6 +41,7 @@ type ModelStorageStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:storageversion
 
 // ModelStorage is the Schema for the modelstorages API
 type ModelStorage struct {
