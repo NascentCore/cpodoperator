@@ -1,8 +1,8 @@
-## portal synch
+# portal synch
 1. synch cpodjobs with portal
 2. upload cpod info to portal
 
-# depends on
+## depends on
 config map named " cpod-info "
 it should be created like
 ```
