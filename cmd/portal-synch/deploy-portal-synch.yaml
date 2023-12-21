@@ -1,0 +1,103 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa-portal-synch
+  namespace: cpodjob-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: role-portal-synch
+rules:
+- apiGroups:
+  - cpod.sxwl.ai
+  resources:
+  - cpodjobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cpod.sxwl.ai
+  resources:
+  - cpodjobs/status
+  verbs:
+  - get
+- apiGroups:
+  - cpod.sxwl.ai
+  resources:
+  - datasetstorages  
+  - datasetstorages/status  
+  - modelstorages
+  - modelstorages/status
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - watch
+  - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: portal-synch-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: role-portal-synch
+subjects:
+- kind: ServiceAccount
+  name: sa-portal-synch
+  namespace: cpodjob-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deploy-portal-synch
+  namespace: cpodjob-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: portal-synch
+  template:
+    metadata:
+      labels:
+        app: portal-synch
+    spec:
+      containers:
+      - name: portal-synch
+        env:
+        - name: DEPLOY
+          value: DEBUG
+        - name: ACCESS_KEY
+          valueFrom:
+            configMapKeyRef:
+              key: access_key
+              name: cpod-info
+        - name: CPOD_ID
+          valueFrom:
+            configMapKeyRef:
+              key: cpod_id
+              name: cpod-info
+        image: sxwl-registry.cn-beijing.cr.aliyuncs.com/sxwl-ai/portalsynch:d980311
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+      serviceAccountName: sa-portal-synch
+      terminationGracePeriodSeconds: 10
