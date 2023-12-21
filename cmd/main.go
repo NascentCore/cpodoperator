@@ -18,9 +18,7 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"os"
-	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -37,8 +35,6 @@ import (
 	cpodv1 "sxwl/cpodoperator/api/v1"
 	cpodv1beta1 "sxwl/cpodoperator/api/v1beta1"
 	"sxwl/cpodoperator/internal/controller"
-	"sxwl/cpodoperator/internal/synchronizer"
-	"sxwl/cpodoperator/pkg/provider/sxwl"
 
 	mpiv2 "github.com/kubeflow/mpi-operator/pkg/apis/kubeflow/v2beta1"
 	tov1 "github.com/kubeflow/training-operator/pkg/apis/kubeflow.org/v1"
@@ -66,10 +62,6 @@ func main() {
 	var probeAddr string
 	var downloaderImage string
 	var storageClassName string
-	var syncPeriod int
-	var sxwlBaseUrl string
-	var sxwlAccessKey string
-	var sxwlIdentity string
 	var modelUploadJobImage string
 	var modelUploadJobBackoffLimit int
 	var modelUploadOssBucketName string
@@ -80,10 +72,6 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.StringVar(&downloaderImage, "artifact-downloader-image", "sxwl-registry.cn-beijing.cr.aliyuncs.com/sxwl-ai/downloader:v1.0.0", "The artifact download job image ")
 	flag.StringVar(&storageClassName, "storageClassName", "ceph-filesystem", "which storagecalss the artifact downloader should create")
-	flag.IntVar(&syncPeriod, "sync-period", 10, "the period of every run of synchronizer, unit is second")
-	flag.StringVar(&sxwlBaseUrl, "sxwl-baseurl", "https://aiapi.yangapi.cn", "the sxwl url ")
-	flag.StringVar(&sxwlAccessKey, "sxwl-accesskey", "", "the access key to access sxwl ")
-	flag.StringVar(&sxwlIdentity, "sxwl-identity", "", "the identity to access sxwl ")
 	flag.StringVar(&modelUploadJobImage, "model-upload-job-image", "sxwl-registry.cn-beijing.cr.aliyuncs.com/sxwl-ai/modeluploader:ea1b518", "the image of model upload job")
 	flag.IntVar(&modelUploadJobBackoffLimit, "model-upload-job-backoff-lmit", 10, "the backoff limit of model upload job")
 	flag.StringVar(&modelUploadOssBucketName, "model-upload-job-bucket-name", "sxwl-ai-test", "the oss bucket name of model upload job")
@@ -157,17 +145,6 @@ func main() {
 	}
 
 	ctx := ctrl.SetupSignalHandler()
-
-	accessKey := os.Getenv("ACCESS_KEY") //from configmap provided by cairong
-	cpodId := os.Getenv("CPOD_ID")       //from configmap provided by cairong
-	syncManager := synchronizer.NewManager(cpodId, mgr.GetClient(), sxwl.NewScheduler(sxwlBaseUrl, accessKey, cpodId), time.Duration(syncPeriod)*time.Second, ctrl.Log)
-	go func() {
-		if mgr.GetCache().WaitForCacheSync(ctx) {
-			syncManager.Start(ctx)
-		} else {
-			setupLog.Error(fmt.Errorf("cannot wait for cache sync"), "problem waiting informer cache")
-		}
-	}()
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctx); err != nil {
