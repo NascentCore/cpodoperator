@@ -5,7 +5,7 @@
 ## depends on
 config map named " cpod-info "
 it should be created like
-```
+```yaml
 apiVersion: v1
 data:
   access_key: xxx
