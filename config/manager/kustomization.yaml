@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: sxwl-registry.cn-beijing.cr.aliyuncs.com/sxwl-ai/cpodoperator
-  newTag: 164f82c
+  newTag: d2ae0b2

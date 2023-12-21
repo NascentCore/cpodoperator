@@ -18,7 +18,9 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -35,6 +37,8 @@ import (
 	cpodv1 "sxwl/cpodoperator/api/v1"
 	cpodv1beta1 "sxwl/cpodoperator/api/v1beta1"
 	"sxwl/cpodoperator/internal/controller"
+	"sxwl/cpodoperator/internal/synchronizer"
+	"sxwl/cpodoperator/pkg/provider/sxwl"
 
 	mpiv2 "github.com/kubeflow/mpi-operator/pkg/apis/kubeflow/v2beta1"
 	tov1 "github.com/kubeflow/training-operator/pkg/apis/kubeflow.org/v1"
@@ -128,6 +132,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "CPodJob")
 		os.Exit(1)
 	}
+
 	// if err = (&controller.ModelStorageReconciler{
 	// 	Client: mgr.GetClient(),
 	// 	Scheme: mgr.GetScheme(),
@@ -153,14 +158,16 @@ func main() {
 
 	ctx := ctrl.SetupSignalHandler()
 
-	// syncManager := synchronizer.NewManager(mgr.GetClient(), sxwl.NewScheduler(sxwlBaseUrl, sxwlAccessKey, sxwlAccessKey), time.Duration(syncPeriod)*time.Second, ctrl.Log)
-	// go func() {
-	// 	if mgr.GetCache().WaitForCacheSync(ctx) {
-	// 		syncManager.Start(ctx)
-	// 	} else {
-	// 		setupLog.Error(fmt.Errorf("cannot wait for cache sync"), "problem waiting informer cache")
-	// 	}
-	// }()
+	accessKey := os.Getenv("ACCESS_KEY") //from configmap provided by cairong
+	cpodId := os.Getenv("CPOD_ID")       //from configmap provided by cairong
+	syncManager := synchronizer.NewManager(cpodId, mgr.GetClient(), sxwl.NewScheduler(sxwlBaseUrl, accessKey, cpodId), time.Duration(syncPeriod)*time.Second, ctrl.Log)
+	go func() {
+		if mgr.GetCache().WaitForCacheSync(ctx) {
+			syncManager.Start(ctx)
+		} else {
+			setupLog.Error(fmt.Errorf("cannot wait for cache sync"), "problem waiting informer cache")
+		}
+	}()
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctx); err != nil {
