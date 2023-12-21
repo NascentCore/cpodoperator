@@ -35,6 +35,16 @@ func NewSyncJob(kubeClient client.Client, scheduler sxwl.Scheduler, logger logr.
 	}
 }
 
+func jobTypeCheck(jobtype string) (v1beta1.JobType, bool) {
+	if strings.ToLower(jobtype) == string(v1beta1.JobTypeMPI) {
+		return v1beta1.JobTypeMPI, true
+	}
+	if strings.ToLower(jobtype) == string(v1beta1.JobTypePytorch) {
+		return v1beta1.JobTypePytorch, true
+	}
+	return "", false
+}
+
 // first retrieve twn job sets , portal job set and cpod job set
 // for jobs in portal not in cpod , create it
 // for jobs in cpod not in portal , if it's running , delete it
@@ -85,7 +95,12 @@ func (s *SyncJob) Start(ctx context.Context) {
 			} else {
 				replicas = int32(job.GpuNumber) / 8
 			}
-
+			jobType, ok := jobTypeCheck(job.JobType)
+			if !ok {
+				s.logger.Info("invalid jobtype", "jobtype", job.JobType)
+				s.addCreateFailedJob(job)
+				continue
+			}
 			newCPodJob := v1beta1.CPodJob{
 				ObjectMeta: metav1.ObjectMeta{
 					// TODO: create namespace for different tenant
@@ -95,7 +110,7 @@ func (s *SyncJob) Start(ctx context.Context) {
 				},
 
 				Spec: v1beta1.CPodJobSpec{
-					JobType:               v1beta1.JobType(job.JobType),
+					JobType:               jobType,
 					GPURequiredPerReplica: gpuPerWorker,
 					GPUType:               job.GpuType,
 					DatasetPath:           job.DatasetPath,
