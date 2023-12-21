@@ -20,7 +20,7 @@ spec:
   gpuRequiredPerReplica: 1
   gpuType: NVIDIA-GeForce-RTX-3090
   workerReplicas: 1
-  pretrainModelName: chatglm3-6b
+  pretrainModelName: model-storage-8bfc0ffceca0f0ce
   pretrainModelPath: /sixpen_models/chatlm3
   datasetName: modihand-dataset
   datasetPath: /tmp/ds
