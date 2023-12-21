@@ -75,6 +75,7 @@ type CPodJobReconciler struct {
 //+kubebuilder:rbac:groups=cpod.sxwl.ai,resources=modelstorages,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=cpod.sxwl.ai,resources=datasetstorages,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="core",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="core",resources=events,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="core",resources=nodes,verbs=get;list;watch
 //+kubebuilder:rbac:groups=kubeflow.org,resources=mpijobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=kubeflow.org,resources=mpijobs/status,verbs=get;update;patch
@@ -362,9 +363,6 @@ func (c *CPodJobReconciler) CreateBaseJob(ctx context.Context, cpodjob cpodv1bet
 				},
 			},
 			Spec: tov1.PyTorchJobSpec{
-				ElasticPolicy: &tov1.ElasticPolicy{
-					RDZVBackend: &backendC10D,
-				},
 				RunPolicy: tov1.RunPolicy{
 					CleanPodPolicy: tov1.CleanPodPolicyPointer(tov1.CleanPodPolicyRunning),
 				},
@@ -404,6 +402,49 @@ func (c *CPodJobReconciler) CreateBaseJob(ctx context.Context, cpodjob cpodv1bet
 					},
 				},
 			},
+		}
+		// it is a distributed training job
+		if cpodjob.Spec.WorkerReplicas > 1 {
+			targetJobSpec := targetJob.(*tov1.PyTorchJob).Spec
+			targetJobSpec.ElasticPolicy = &tov1.ElasticPolicy{
+				RDZVBackend: &backendC10D,
+			}
+			nprocPerNode := strconv.Itoa(int(cpodjob.Spec.WorkerReplicas))
+			targetJobSpec.NprocPerNode = &nprocPerNode
+			workerSpec := targetJobSpec.PyTorchReplicaSpecs[tov1.PaddleJobReplicaTypeWorker].Template.Spec
+			workerSpec.Containers[0].Env = append(workerSpec.Containers[0].Env, []corev1.EnvVar{
+				{
+					Name:  "NCCL_NET",
+					Value: "IB",
+				},
+				{
+					Name:  "NCCL_IB_DISABLE",
+					Value: "0",
+				},
+			}...)
+			workerSpec.Containers[0].SecurityContext = &corev1.SecurityContext{
+				Capabilities: &corev1.Capabilities{
+					Add: []corev1.Capability{
+						"IPC_LOCK",
+					},
+				},
+			}
+			workerSpec.Containers[0].Resources.Requests["rdma/rdma_shared_device_a"] = *resource.NewQuantity(1, resource.DecimalSI)
+			workerSpec.Containers[0].Resources.Limits["rdma/rdma_shared_device_a"] = *resource.NewQuantity(1, resource.DecimalSI)
+			workerSpec.Volumes = append(workerSpec.Volumes, corev1.Volume{
+				Name: "shm",
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{
+						Medium:    corev1.StorageMediumMemory,
+						SizeLimit: resource.NewQuantity(5120, resource.BinarySI),
+					},
+				},
+			})
+			workerSpec.Containers[0].VolumeMounts = append(workerSpec.Containers[0].VolumeMounts, corev1.VolumeMount{
+				Name:      "shm",
+				MountPath: "/dev/shm",
+			})
+
 		}
 	}
 
@@ -595,6 +636,9 @@ func (c *CPodJobReconciler) onOwnerCreateFunc() func(event.CreateEvent) bool {
 	}
 }
 
+// generateOwnerRefCPodJob generates an OwnerReference for a CPodJob object.
+// It takes a context.Context and a CPodJob object as input and returns a metav1.OwnerReference.
+// The generated OwnerReference contains the APIVersion, Kind, Name, UID, Controller, and BlockOwnerDeletion fields.
 func (c *CPodJobReconciler) generateOwnerRefCPodJob(ctx context.Context, cpodjob *v1beta1.CPodJob) metav1.OwnerReference {
 	yes := true
 	return metav1.OwnerReference{
