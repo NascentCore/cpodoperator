@@ -5,7 +5,6 @@ import (
 	"strings"
 	"sxwl/cpodoperator/api/v1beta1"
 	"sxwl/cpodoperator/pkg/provider/sxwl"
-	"sxwl/cpodoperator/pkg/util"
 	"sync"
 
 	"github.com/go-logr/logr"
@@ -33,6 +32,16 @@ func NewSyncJob(kubeClient client.Client, scheduler sxwl.Scheduler, logger logr.
 		createFailedJobs: jobBuffer{m: map[string]sxwl.PortalJob{}, mu: new(sync.RWMutex)},
 		logger:           logger,
 	}
+}
+
+func jobTypeCheck(jobtype string) (v1beta1.JobType, bool) {
+	if strings.ToLower(jobtype) == string(v1beta1.JobTypeMPI) {
+		return v1beta1.JobTypeMPI, true
+	}
+	if strings.ToLower(jobtype) == string(v1beta1.JobTypePytorch) {
+		return v1beta1.JobTypePytorch, true
+	}
+	return "", false
 }
 
 // first retrieve twn job sets , portal job set and cpod job set
@@ -85,7 +94,12 @@ func (s *SyncJob) Start(ctx context.Context) {
 			} else {
 				replicas = int32(job.GpuNumber) / 8
 			}
-
+			jobType, ok := jobTypeCheck(job.JobType)
+			if !ok {
+				s.logger.Info("invalid jobtype", "jobtype", job.JobType)
+				s.addCreateFailedJob(job)
+				continue
+			}
 			newCPodJob := v1beta1.CPodJob{
 				ObjectMeta: metav1.ObjectMeta{
 					// TODO: create namespace for different tenant
@@ -95,7 +109,7 @@ func (s *SyncJob) Start(ctx context.Context) {
 				},
 
 				Spec: v1beta1.CPodJobSpec{
-					JobType:               v1beta1.JobType(job.JobType),
+					JobType:               jobType,
 					GPURequiredPerReplica: gpuPerWorker,
 					GPUType:               job.GpuType,
 					DatasetPath:           job.DatasetPath,
@@ -126,7 +140,9 @@ func (s *SyncJob) Start(ctx context.Context) {
 
 	for _, cpodjob := range cpodjobs.Items {
 		// do nothing if job has reached a no more change status
-		if util.IsFinshed(cpodjob.Status) {
+		status, _ := parseStatus(cpodjob.Status)
+		if status == v1beta1.JobFailed || status == v1beta1.JobModelUploaded ||
+			status == v1beta1.JobSucceeded || status == v1beta1.JobModelUploading {
 			continue
 		}
 		exists := false

@@ -67,7 +67,7 @@ func (co *CPodObserver) Start(ctx context.Context) {
 func parseStatus(s v1beta1.CPodJobStatus) (v1beta1.JobConditionType, string) {
 	conditions := s.Conditions
 	if len(conditions) == 0 {
-		return v1beta1.JobCreated, ""
+		return v1beta1.JobCreated, "no status"
 	}
 	condMap := map[v1beta1.JobConditionType]v1beta1.JobCondition{}
 	for _, cond := range conditions {
@@ -81,7 +81,7 @@ func parseStatus(s v1beta1.CPodJobStatus) (v1beta1.JobConditionType, string) {
 			return checker, condMap[checker].Message
 		}
 	}
-	return v1beta1.JobCreated, ""
+	return v1beta1.JobCreated, "unknow status"
 }
 
 func (co *CPodObserver) getJobStates(ctx context.Context) ([]sxwl.State, error) {
@@ -93,9 +93,24 @@ func (co *CPodObserver) getJobStates(ctx context.Context) ([]sxwl.State, error) 
 		return nil, err
 	}
 
-	stats := make([]sxwl.State, len(cpodjobs.Items))
+	stats := []sxwl.State{}
 	for _, cpodjob := range cpodjobs.Items {
 		status, info := parseStatus(cpodjob.Status)
+		// it'a time limit job
+		if cpodjob.Spec.Duration > 0 {
+			createTime := cpodjob.CreationTimestamp.Time
+			if createTime.Add(time.Duration(cpodjob.Spec.Duration) * time.Minute).Before(time.Now()) {
+				// TODO: add new status  TimeUp
+				if status == v1beta1.JobRunning {
+					info = "timeup when running"
+					status = v1beta1.JobSucceeded
+				} else {
+					info = "timeup job not running"
+					status = v1beta1.JobFailed
+				}
+			}
+		}
+
 		stats = append(stats, sxwl.State{
 			Name:      cpodjob.Name,
 			Namespace: cpodjob.Namespace,

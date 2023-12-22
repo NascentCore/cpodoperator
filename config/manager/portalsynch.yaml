@@ -58,7 +58,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: sa-portalsynch
-  namespace: cpodjob-system
+  namespace: cpod-system
 ---
 apiVersion: apps/v1
 kind: Deployment
