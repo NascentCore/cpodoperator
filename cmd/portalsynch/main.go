@@ -33,7 +33,7 @@ import (
 
 	cpodv1 "sxwl/cpodoperator/api/v1"
 	cpodv1beta1 "sxwl/cpodoperator/api/v1beta1"
-	clientconfig "sxwl/cpodoperator/cmd/portal-synch/client-config"
+	clientconfig "sxwl/cpodoperator/cmd/portalsynch/client-config"
 	"sxwl/cpodoperator/internal/synchronizer"
 	"sxwl/cpodoperator/pkg/provider/sxwl"
 

@@ -3,7 +3,7 @@
 2. upload cpod info to portal
 
 ## depends on
-config map named " cpod-info "
+configmap named " cpod-info "
 it should be created like
 ```yaml
 apiVersion: v1

@@ -1,6 +1,7 @@
 
 # Image URL to use all building/pushing image targets
-IMG ?= sxwl-registry.cn-beijing.cr.aliyuncs.com/sxwl-ai/cpodoperator:$(shell git rev-parse --short HEAD)
+OPERATOR-IMG ?= sxwl-registry.cn-beijing.cr.aliyuncs.com/sxwl-ai/cpodoperator:$(shell git rev-parse --short HEAD)
+PORTALSYNCH-IMG ?= sxwl-registry.cn-beijing.cr.aliyuncs.com/sxwl-ai/portalsynch:$(shell git rev-parse --short HEAD)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.28.0
 
@@ -84,22 +85,29 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.
-	go build -o bin/manager cmd/main.go
+	go build -o bin/manager cmd/operator/main.go
+	go build -o bin/portalsynch cmd/portalsynch/main.go
 
-.PHONY: run
-run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./cmd/main.go
+.PHONY: run-operator
+run-operator: manifests generate fmt vet ## Run a controller from your host.
+	go run ./cmd/operator/main.go
+
+.PHONY: run-portalsynch
+run-portalsynch: manifests generate fmt vet ## Run a controller from your host.
+	go run ./cmd/portalsynch/main.go
 
 # If you wish to build the manager image targeting other platforms you can use the --platform flag.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	$(CONTAINER_TOOL) build -t ${IMG} .
+	$(CONTAINER_TOOL) build -t ${OPERATOR-IMG} -f cmd/operator/Dockerfile .
+	$(CONTAINER_TOOL) build -t ${PORTALSYNCH-IMG} -f cmd/portalsynch/Dockerfile .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
-	$(CONTAINER_TOOL) push ${IMG}
+	$(CONTAINER_TOOL) push ${OPERATOR-IMG}
+	$(CONTAINER_TOOL) push ${PORTALSYNCH-IMG}
 
 # PLATFORMS defines the target platforms for the manager image be built to provide support to multiple
 # architectures. (i.e. make docker-buildx IMG=myregistry/mypoperator:0.0.1). To use this option you need to:
@@ -134,8 +142,13 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 
 .PHONY: deploy
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${OPERATOR-IMG} portalsynch=${PORTALSYNCH-IMG}
 	$(KUSTOMIZE) build config/default | $(KUBECTL) apply -f -
+
+.PHONY: build-deploy
+build-deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${OPERATOR-IMG} portalsynch=${PORTALSYNCH-IMG}
+	$(KUSTOMIZE) build config/default > bin/cpodoperator.yaml
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.

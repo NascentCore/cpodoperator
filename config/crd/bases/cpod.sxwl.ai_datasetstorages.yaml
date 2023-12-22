@@ -14,7 +14,17 @@ spec:
     singular: datasetstorage
   scope: Namespaced
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.datasettype
+      name: DatasetType
+      type: string
+    - jsonPath: .spec.datasetname
+      name: DatasetName
+      type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    name: v1
     schema:
       openAPIV3Schema:
         description: DataSetStorage is the Schema for the datasetstorages API

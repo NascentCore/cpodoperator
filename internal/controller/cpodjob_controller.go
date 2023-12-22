@@ -119,7 +119,7 @@ func (c *CPodJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ 
 		baseJob, err := c.GetBaseJob(ctx, cpodjob)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
-				err = c.CreateBaseJob(ctx, *cpodjob)
+				err = c.CreateBaseJob(ctx, cpodjob)
 				if err != nil {
 					logger.Error(err, "unable to create baseJob")
 					return ctrl.Result{}, err
@@ -182,7 +182,7 @@ func (c *CPodJobReconciler) needReconcile(cpodjob *cpodv1beta1.CPodJob) bool {
 }
 
 // CreateBaseJob creates the base job object based on the job type specified in the CPodJob.
-func (c *CPodJobReconciler) CreateBaseJob(ctx context.Context, cpodjob cpodv1beta1.CPodJob) error {
+func (c *CPodJobReconciler) CreateBaseJob(ctx context.Context, cpodjob *cpodv1beta1.CPodJob) error {
 	// 需要判断是否使用分布式训练，尽可能在节点运行，考虑以下因素
 	// 1. 用户制定，需要清楚训练任务是否支持分布式训练
 	// 2. 节点GPU使用数量
@@ -212,18 +212,18 @@ func (c *CPodJobReconciler) CreateBaseJob(ctx context.Context, cpodjob cpodv1bet
 	}
 
 	if cpodjob.Spec.CKPTPath != "" {
-		ckptPVC, err := c.GetCKPTPVC(ctx, &cpodjob)
+		ckptPVC, err := c.GetCKPTPVC(ctx, cpodjob)
 		if err != nil {
-			c.Recorder.Eventf(&cpodjob, corev1.EventTypeWarning, "GetCKPTPVCFailed", "Get ckpt pvc failed")
+			c.Recorder.Eventf(cpodjob, corev1.EventTypeWarning, "GetCKPTPVCFailed", "Get ckpt pvc failed")
 			return err
 		}
 		addVolume("ckpt", ckptPVC.Name, cpodjob.Spec.CKPTPath)
 	}
 
 	if cpodjob.Spec.ModelSavePath != "" && cpodjob.Spec.ModelSaveVolumeSize != 0 {
-		modelSavePVC, err := c.GetModelSavePVC(ctx, &cpodjob)
+		modelSavePVC, err := c.GetModelSavePVC(ctx, cpodjob)
 		if err != nil {
-			c.Recorder.Eventf(&cpodjob, corev1.EventTypeWarning, "GetModelSavePVCFailed", "Get model save pvc failed")
+			c.Recorder.Eventf(cpodjob, corev1.EventTypeWarning, "GetModelSavePVCFailed", "Get model save pvc failed")
 			return err
 		}
 		addVolume("modelsave", modelSavePVC.Name, cpodjob.Spec.ModelSavePath)
@@ -233,24 +233,24 @@ func (c *CPodJobReconciler) CreateBaseJob(ctx context.Context, cpodjob cpodv1bet
 		dataset := &cpodv1.DataSetStorage{}
 		if err := c.Client.Get(ctx, client.ObjectKey{Namespace: cpodjob.Namespace, Name: cpodjob.Spec.DatasetName}, dataset); err != nil {
 			if apierrors.IsNotFound(err) {
-				c.Recorder.Eventf(&cpodjob, corev1.EventTypeWarning, "DatasetFailed", "Dataset not found")
+				c.Recorder.Eventf(cpodjob, corev1.EventTypeWarning, "DatasetFailed", "Dataset not found")
 				util.UpdateJobConditions(&cpodjob.Status, cpodv1beta1.JobFailed, corev1.ConditionTrue, "GetDatasetFailed", "Dataset not found")
-				return c.UpdateStatus(ctx, &cpodjob, nil)
+				return c.UpdateStatus(ctx, cpodjob, nil)
 			}
 			return err
 		}
 		if dataset.Status.Phase != "done" {
-			c.Recorder.Eventf(&cpodjob, corev1.EventTypeWarning, "GetDatasetFailed", "Dateset not found")
+			c.Recorder.Eventf(cpodjob, corev1.EventTypeWarning, "GetDatasetFailed", "Dateset not found")
 			util.UpdateJobConditions(&cpodjob.Status, cpodv1beta1.JobFailed, corev1.ConditionTrue, "GetPretrainModelFailed", "Pretrain model downloader failed")
-			return c.UpdateStatus(ctx, &cpodjob, nil)
+			return c.UpdateStatus(ctx, cpodjob, nil)
 		}
 
 		datasetPVC := &corev1.PersistentVolumeClaim{}
 		if err := c.Client.Get(ctx, client.ObjectKey{Namespace: cpodjob.Namespace, Name: dataset.Spec.PVC}, datasetPVC); err != nil {
 			if apierrors.IsNotFound(err) {
-				c.Recorder.Eventf(&cpodjob, corev1.EventTypeWarning, "GetDatasetPVCFailed", "Dataset PVC not found")
+				c.Recorder.Eventf(cpodjob, corev1.EventTypeWarning, "GetDatasetPVCFailed", "Dataset PVC not found")
 				util.UpdateJobConditions(&cpodjob.Status, cpodv1beta1.JobFailed, corev1.ConditionTrue, "GetDatasetPVCFailed", "Dataset PVC not found")
-				return c.UpdateStatus(ctx, &cpodjob, nil)
+				return c.UpdateStatus(ctx, cpodjob, nil)
 			}
 			return err
 		}
@@ -261,24 +261,24 @@ func (c *CPodJobReconciler) CreateBaseJob(ctx context.Context, cpodjob cpodv1bet
 		pretrainModel := &cpodv1.ModelStorage{}
 		if err := c.Client.Get(ctx, client.ObjectKey{Namespace: cpodjob.Namespace, Name: cpodjob.Spec.PretrainModelName}, pretrainModel); err != nil {
 			if apierrors.IsNotFound(err) {
-				c.Recorder.Eventf(&cpodjob, corev1.EventTypeWarning, "GetPretrainModelFailed", "Pretrain model not found")
+				c.Recorder.Eventf(cpodjob, corev1.EventTypeWarning, "GetPretrainModelFailed", "Pretrain model not found")
 				util.UpdateJobConditions(&cpodjob.Status, cpodv1beta1.JobFailed, corev1.ConditionTrue, "GetPretrainModelFailed", "Pretrain model not found")
-				return c.UpdateStatus(ctx, &cpodjob, nil)
+				return c.UpdateStatus(ctx, cpodjob, nil)
 			}
 			return err
 		}
 		if pretrainModel.Status.Phase != "done" {
-			c.Recorder.Eventf(&cpodjob, corev1.EventTypeWarning, "GetPretrainModelFailed", "Pretrain model not found")
+			c.Recorder.Eventf(cpodjob, corev1.EventTypeWarning, "GetPretrainModelFailed", "Pretrain model not found")
 			util.UpdateJobConditions(&cpodjob.Status, cpodv1beta1.JobFailed, corev1.ConditionTrue, "GetPretrainModelFailed", "Pretrain model downloader failed")
-			return c.UpdateStatus(ctx, &cpodjob, nil)
+			return c.UpdateStatus(ctx, cpodjob, nil)
 		}
 
 		pretrainModelPVC := &corev1.PersistentVolumeClaim{}
 		if err := c.Client.Get(ctx, client.ObjectKey{Namespace: cpodjob.Namespace, Name: pretrainModel.Spec.PVC}, pretrainModelPVC); err != nil {
 			if apierrors.IsNotFound(err) {
-				c.Recorder.Eventf(&cpodjob, corev1.EventTypeWarning, "GetPretrainModelPVCFailed", "Pretrain model PVC not found")
+				c.Recorder.Eventf(cpodjob, corev1.EventTypeWarning, "GetPretrainModelPVCFailed", "Pretrain model PVC not found")
 				util.UpdateJobConditions(&cpodjob.Status, cpodv1beta1.JobFailed, corev1.ConditionTrue, "GetPretrainModelPVCFailed", "Pretrain model PVC not found")
-				return c.UpdateStatus(ctx, &cpodjob, nil)
+				return c.UpdateStatus(ctx, cpodjob, nil)
 			}
 		}
 		addVolume("pretrain-model", pretrainModelPVC.Name, cpodjob.Spec.PretrainModelPath)
@@ -300,7 +300,7 @@ func (c *CPodJobReconciler) CreateBaseJob(ctx context.Context, cpodjob cpodv1bet
 				Name:      cpodjob.Name,
 				Namespace: cpodjob.Namespace,
 				OwnerReferences: []metav1.OwnerReference{
-					c.generateOwnerRefCPodJob(ctx, &cpodjob),
+					c.generateOwnerRefCPodJob(ctx, cpodjob),
 				},
 			},
 			Spec: mpiv2.MPIJobSpec{
@@ -359,7 +359,7 @@ func (c *CPodJobReconciler) CreateBaseJob(ctx context.Context, cpodjob cpodv1bet
 				Name:      cpodjob.Name,
 				Namespace: cpodjob.Namespace,
 				OwnerReferences: []metav1.OwnerReference{
-					c.generateOwnerRefCPodJob(ctx, &cpodjob),
+					c.generateOwnerRefCPodJob(ctx, cpodjob),
 				},
 			},
 			Spec: tov1.PyTorchJobSpec{
@@ -405,13 +405,13 @@ func (c *CPodJobReconciler) CreateBaseJob(ctx context.Context, cpodjob cpodv1bet
 		}
 		// it is a distributed training job
 		if cpodjob.Spec.WorkerReplicas > 1 {
-			targetJobSpec := targetJob.(*tov1.PyTorchJob).Spec
-			targetJobSpec.ElasticPolicy = &tov1.ElasticPolicy{
+			targetJobSpec := targetJob.(*tov1.PyTorchJob)
+			targetJobSpec.Spec.ElasticPolicy = &tov1.ElasticPolicy{
 				RDZVBackend: &backendC10D,
 			}
 			nprocPerNode := strconv.Itoa(int(cpodjob.Spec.WorkerReplicas))
-			targetJobSpec.NprocPerNode = &nprocPerNode
-			workerSpec := targetJobSpec.PyTorchReplicaSpecs[tov1.PaddleJobReplicaTypeWorker].Template.Spec
+			targetJobSpec.Spec.NprocPerNode = &nprocPerNode
+			workerSpec := targetJobSpec.Spec.PyTorchReplicaSpecs[tov1.PaddleJobReplicaTypeWorker].Template.Spec
 			workerSpec.Containers[0].Env = append(workerSpec.Containers[0].Env, []corev1.EnvVar{
 				{
 					Name:  "NCCL_NET",
@@ -444,7 +444,6 @@ func (c *CPodJobReconciler) CreateBaseJob(ctx context.Context, cpodjob cpodv1bet
 				Name:      "shm",
 				MountPath: "/dev/shm",
 			})
-
 		}
 	}
 
@@ -745,6 +744,8 @@ func (c *CPodJobReconciler) uploadSavedModel(ctx context.Context, cpodjob *v1bet
 	return nil
 }
 
+// GetModelSavePVCName returns the name of the PVC (Persistent Volume Claim) used to save the model for the given CPodJob.
+// The name is generated by appending "-modelsave-pvc" to the name of the CPodJob.
 func (c *CPodJobReconciler) GetModelSavePVCName(cpodjob *v1beta1.CPodJob) string {
 	return fmt.Sprintf("%s-modelsave-pvc", cpodjob.Name)
 }
