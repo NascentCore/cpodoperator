@@ -332,9 +332,13 @@ func (c *CPodJobReconciler) CreateBaseJob(ctx context.Context, cpodjob *cpodv1be
 									{
 										Env:          cpodjob.Spec.Envs,
 										Image:        cpodjob.Spec.Image,
+										Name:         "worker",
 										VolumeMounts: volumeMounts,
 										Resources: corev1.ResourceRequirements{
 											Requests: corev1.ResourceList{
+												corev1.ResourceName("nvidia.com/gpu"): resource.MustParse(strconv.Itoa(int(cpodjob.Spec.GPURequiredPerReplica))),
+											},
+											Limits: corev1.ResourceList{
 												corev1.ResourceName("nvidia.com/gpu"): resource.MustParse(strconv.Itoa(int(cpodjob.Spec.GPURequiredPerReplica))),
 											},
 										},
