@@ -5,7 +5,6 @@ import (
 	"strings"
 	"sxwl/cpodoperator/api/v1beta1"
 	"sxwl/cpodoperator/pkg/provider/sxwl"
-	"sxwl/cpodoperator/pkg/util"
 	"sync"
 
 	"github.com/go-logr/logr"
@@ -141,7 +140,9 @@ func (s *SyncJob) Start(ctx context.Context) {
 
 	for _, cpodjob := range cpodjobs.Items {
 		// do nothing if job has reached a no more change status
-		if util.IsFinshed(cpodjob.Status) {
+		status, _ := parseStatus(cpodjob.Status)
+		if status == v1beta1.JobFailed || status == v1beta1.JobModelUploaded ||
+			status == v1beta1.JobSucceeded || status == v1beta1.JobModelUploading {
 			continue
 		}
 		exists := false
