@@ -1,8 +1,12 @@
 resources:
 - manager.yaml
+- portalsynch.yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
 - name: controller
   newName: sxwl-registry.cn-beijing.cr.aliyuncs.com/sxwl-ai/cpodoperator
-  newTag: a6b8cf8
+  newTag: f14565f
+- name: portalsynch
+  newName: sxwl-registry.cn-beijing.cr.aliyuncs.com/sxwl-ai/portalsynch
+  newTag: f14565f

@@ -41,6 +41,9 @@ type DataSetStorageStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="DatasetType",type=string,JSONPath=`.spec.datasettype`
+// +kubebuilder:printcolumn:name="DatasetName",type=string,JSONPath=`.spec.datasetname`
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 
 // DataSetStorage is the Schema for the datasetstorages API
 type DataSetStorage struct {

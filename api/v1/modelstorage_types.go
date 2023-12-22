@@ -42,6 +42,9 @@ type ModelStorageStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:storageversion
+// +kubebuilder:printcolumn:name="ModelType",type=string,JSONPath=`.spec.modeltype`
+// +kubebuilder:printcolumn:name="ModelName",type=string,JSONPath=`.spec.modelname`
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 
 // ModelStorage is the Schema for the modelstorages API
 type ModelStorage struct {

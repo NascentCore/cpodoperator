@@ -15,12 +15,6 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .metadata.namespace
-      name: Name
-      type: string
-    - jsonPath: .metadata.name
-      name: Name
-      type: string
     - jsonPath: .spec.jobType
       name: Type
       type: string
