@@ -45,6 +45,11 @@ func (s *sxwl) GetAssignedJobList() ([]PortalJob, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("httpcode(%d) is not 200 , resp body: %s", resp.StatusCode, string(body))
+	}
+
 	var res []PortalJob
 	if err = json.Unmarshal(body, &res); err != nil {
 		return nil, err
